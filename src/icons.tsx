@@ -25,7 +25,8 @@ type IconName =
   | 'close'
   | 'chevron'
   | 'image'
-  | 'swap';
+  | 'swap'
+  | 'sparkles';
 
 interface IconProps {
   name: IconName;
@@ -217,6 +218,13 @@ export function Icon({ name, size = 18 }: IconProps) {
           <path d="M4 7h16" {...stroke} />
           <path d="M8 21l-4-4 4-4" {...stroke} />
           <path d="M20 17H4" {...stroke} />
+        </svg>
+      );
+    case 'sparkles':
+      return (
+        <svg viewBox="0 0 24 24" style={s}>
+          <path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z" {...stroke} />
+          <path d="M19 17l.7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7z" {...stroke} />
         </svg>
       );
     default:

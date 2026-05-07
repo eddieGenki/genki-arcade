@@ -4,6 +4,7 @@ import sc3CableUrl from './assets/sc3-cable.jpg';
 import { Icon } from './icons';
 import { pickLanguage, useTranslation } from './i18n';
 import { NEWS_ITEMS, shuffled } from './news';
+import { UpscaleCanvas } from './upscaler';
 
 type DeviceInfo = { deviceId: string; label: string };
 
@@ -165,6 +166,7 @@ export default function App() {
   const [resolution, setResolution] = useState<string>('1920x1080');
   const [fps, setFps] = useState<number>(60);
   const [mirrored, setMirrored] = useState<boolean>(false);
+  const [upscaleOn, setUpscaleOn] = useState<boolean>(false);
   const [audioOn, setAudioOn] = useState<boolean>(true);
   // Monitoring volume — only affects what comes out of the speakers, not the
   // recorded mix (so a quiet headphone setting doesn't tank recording levels).
@@ -210,6 +212,10 @@ export default function App() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
   const recordingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // The upscaler exposes its WebGL canvas through this ref. drawComposite
+  // reads from it instead of the raw <video> when upscaleOn is true so
+  // recordings and screenshots capture the sharpened output.
+  const upscaleCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const recordingRafRef = useRef<number>(0);
   const [recording, setRecording] = useState<boolean>(false);
   const [recElapsed, setRecElapsed] = useState<number>(0);
@@ -266,6 +272,7 @@ export default function App() {
     pipMirrored: true,
     composedFilterActive: false,
     composedFilter: 'none',
+    upscaleOn: false,
   });
 
   // -------------------------------------------------------------------------
@@ -544,6 +551,7 @@ export default function App() {
       pipMirrored,
       composedFilterActive,
       composedFilter,
+      upscaleOn,
     };
   });
 
@@ -732,10 +740,19 @@ export default function App() {
       pipMirrored: pmFlag,
       composedFilterActive: aFlag,
       composedFilter: fCss,
+      upscaleOn: uFlag,
     } = captureSettingsRef.current;
 
-    if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
-    if (canvas.height !== video.videoHeight) canvas.height = video.videoHeight;
+    // When upscaling is on, capture from the WebGL canvas the user is
+    // actually watching (sharpened, 2× source). Falls back to the raw
+    // <video> if the upscale canvas isn't ready yet.
+    const upscaleCanvas = upscaleCanvasRef.current;
+    const useUpscale = uFlag && upscaleCanvas && upscaleCanvas.width > 0;
+    const srcW = useUpscale ? upscaleCanvas.width : video.videoWidth;
+    const srcH = useUpscale ? upscaleCanvas.height : video.videoHeight;
+
+    if (canvas.width !== srcW) canvas.width = srcW;
+    if (canvas.height !== srcH) canvas.height = srcH;
 
     ctx.save();
     ctx.filter = aFlag ? fCss : 'none';
@@ -743,7 +760,7 @@ export default function App() {
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
     }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(useUpscale ? upscaleCanvas : video, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
     const pipVid = pipVideoRef.current;
@@ -975,6 +992,12 @@ export default function App() {
   const labelsKnown = videoDevices.some((d) => d.deviceId && d.label);
   const isShadowcastActive =
     isGenkiDevice(activeVideoLabel) || isGenkiDevice(activeAudioLabel);
+
+  // 4K upscaling is locked behind ShadowCast detection. If the active main
+  // input changes to a non-Genki device while upscaling is on, turn it off.
+  useEffect(() => {
+    if (upscaleOn && !isShadowcastActive) setUpscaleOn(false);
+  }, [upscaleOn, isShadowcastActive]);
   const isShadowcast3 =
     SHADOWCAST3_HINT.test(activeVideoLabel) || SHADOWCAST3_HINT.test(activeAudioLabel);
   const showUpsell = !upsellDismissed && (!labelsKnown || !isShadowcast3);
@@ -1163,10 +1186,25 @@ export default function App() {
           playsInline
           className={`arc-video ${mirrored ? 'is-mirrored' : ''}`}
           style={{
-            display: running ? 'block' : 'none',
+            // Hide the raw <video> when upscaling is on — the WebGL canvas
+            // renders an enhanced version on top. The element stays mounted
+            // so its srcObject keeps producing frames the upscaler can read.
+            display: running && !upscaleOn ? 'block' : 'none',
             filter: composedFilterActive ? composedFilter : undefined,
           }}
         />
+
+        {running && upscaleOn && (
+          <UpscaleCanvas
+            videoRef={videoRef}
+            canvasRef={upscaleCanvasRef}
+            className={`arc-video ${mirrored ? 'is-mirrored' : ''}`}
+            style={{
+              display: 'block',
+              filter: composedFilterActive ? composedFilter : undefined,
+            }}
+          />
+        )}
 
         {/* PiP webcam overlay */}
         {pipOn && running && (
@@ -1474,6 +1512,37 @@ export default function App() {
             onTooltipEnter={onIconEnter}
             onTooltipLeave={onIconLeave}
           />
+
+          {/* 4K upscaling — locked behind ShadowCast detection. When the
+              active device isn't a ShadowCast we keep the button mounted
+              (so the tooltip can explain why) but render it as soft-disabled
+              with a no-op click. */}
+          {(() => {
+            const upscaleAvailable = isShadowcastActive;
+            const upscaleLabel = upscaleAvailable
+              ? '4K upscaling'
+              : '4K upscaling — ShadowCast required';
+            return (
+              <button
+                className={`arc-tool ${upscaleOn ? 'is-active' : ''} ${
+                  !upscaleAvailable ? 'is-unavailable' : ''
+                }`}
+                onMouseEnter={onIconEnter(upscaleLabel)}
+                onMouseLeave={onIconLeave}
+                onFocus={onIconEnter(upscaleLabel)}
+                onBlur={onIconLeave}
+                onClick={() => {
+                  onIconLeave();
+                  if (running && upscaleAvailable) setUpscaleOn((v) => !v);
+                }}
+                disabled={!running}
+                aria-label={upscaleLabel}
+                type="button"
+              >
+                <Icon name="sparkles" size={18} />
+              </button>
+            );
+          })()}
 
           <div className="arc-tools-divider" />
 

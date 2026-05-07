@@ -817,6 +817,13 @@ input {
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* Soft-disabled: looks disabled but stays interactive so hover tooltips
+ * still fire (the click handler no-ops). Used by 4K upscaling when the
+ * active device isn't a ShadowCast so we can explain *why* it's locked. */
+.arc-tool.is-unavailable {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 /* Audio passthrough button + hover-revealed volume slider */
 .arc-audio-wrap {
