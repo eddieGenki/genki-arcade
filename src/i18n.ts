@@ -60,7 +60,7 @@ const en: Translation = {
   live: 'Live',
   rec: 'REC',
 
-  heroEyebrow: 'Browser-based capture',
+  heroEyebrow: 'Every screen, a playground.',
   heroTitle: 'Equip your journey.',
   heroSub:
     'Plug in your capture card and play any console, anywhere,\nno install, no account, no nonsense.',
