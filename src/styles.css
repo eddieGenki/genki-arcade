@@ -596,45 +596,62 @@ input {
 }
 
 /* =========================================================================
- * News ticker — bottom-right rotating banner
+ * News ticker — sits in the dock, above the button row
  * ===================================================================== */
 
 .arc-ticker {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  max-width: 420px;
-  padding: 9px 14px;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 12px;
-  line-height: 1.45;
-  z-index: 4; /* below PiP (z-index 5) so PiP can sit over it if user wants */
-  opacity: 1;
-  transition: opacity 0.35s ease;
-  pointer-events: auto;
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
+  display: flex;
   align-items: baseline;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--arc-border);
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(245, 245, 245, 0.78);
+  font-family: 'Suisse Int\'l', 'Inter', system-ui, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.4s ease;
 }
 .arc-ticker.is-fading {
   opacity: 0;
 }
+
+.arc-ticker-user {
+  flex: 0 0 auto;
+  color: var(--teal);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .arc-ticker-text {
   flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+.arc-ticker-cursor {
+  display: inline-block;
+  margin-left: 1px;
+  color: var(--arc-fg);
+  animation: arcTickerBlink 1s steps(2, start) infinite;
+  font-weight: 400;
+  transform: translateY(1px);
+}
+@keyframes arcTickerBlink {
+  to {
+    visibility: hidden;
+  }
+}
+
 .arc-ticker-link {
+  flex: 0 0 auto;
   color: var(--coral);
   text-decoration: none;
   font-weight: 600;
   white-space: nowrap;
-  flex: 0 0 auto;
 }
 .arc-ticker-link:hover {
   text-decoration: underline;

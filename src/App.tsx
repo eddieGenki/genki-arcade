@@ -936,12 +936,11 @@ export default function App() {
             </div>
           </div>
         )}
-
-        <NewsTicker />
       </main>
 
       {/* DOCK */}
       <footer className="arc-dock">
+        <NewsTicker />
         <div className="arc-tools">
           {/* Settings popover trigger */}
           <div className="arc-settings-wrap" ref={settingsRef}>
@@ -1206,26 +1205,59 @@ function NewsTicker() {
   // Random order per visit so visitors don't always see the same first item.
   const items = useState(() => shuffled(NEWS_ITEMS))[0];
   const [index, setIndex] = useState(0);
-  const [fading, setFading] = useState(false);
-  const ROTATION_MS = 11_000;
-  const FADE_MS = 350;
+  const [typed, setTyped] = useState('');
+  const [phase, setPhase] = useState<'typing' | 'idle' | 'fading'>('typing');
 
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setFading(true);
-      window.setTimeout(() => {
-        setIndex((i) => (i + 1) % items.length);
-        setFading(false);
-      }, FADE_MS);
-    }, ROTATION_MS);
-    return () => window.clearInterval(id);
-  }, [items.length]);
+  // Pacing
+  const TYPE_INTERVAL_MS = 35; // per character
+  const DWELL_MS = 8_000; // how long the fully-typed message stays before fading
+  const FADE_MS = 400; // fade-out duration before advancing
 
   const item = items[index];
+
+  // 1) Typewriter — types out the current message character by character
+  useEffect(() => {
+    setTyped('');
+    setPhase('typing');
+    let i = 0;
+    const id = window.setInterval(() => {
+      i += 1;
+      setTyped(item.text.slice(0, i));
+      if (i >= item.text.length) {
+        window.clearInterval(id);
+        setPhase('idle');
+      }
+    }, TYPE_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [item.id, item.text]);
+
+  // 2) Dwell — once typing finishes, hold for DWELL_MS, then fade
+  useEffect(() => {
+    if (phase !== 'idle') return;
+    const id = window.setTimeout(() => setPhase('fading'), DWELL_MS);
+    return () => window.clearTimeout(id);
+  }, [phase]);
+
+  // 3) Fade — wait for the CSS transition, then advance to next message
+  useEffect(() => {
+    if (phase !== 'fading') return;
+    const id = window.setTimeout(() => {
+      setIndex((i) => (i + 1) % items.length);
+    }, FADE_MS);
+    return () => window.clearTimeout(id);
+  }, [phase, items.length]);
+
   return (
-    <div className={`arc-ticker ${fading ? 'is-fading' : ''}`} aria-live="polite">
-      <span className="arc-ticker-text">{item.text}</span>
-      {item.link && (
+    <div
+      className={`arc-ticker ${phase === 'fading' ? 'is-fading' : ''}`}
+      aria-live="polite"
+    >
+      {item.username && <span className="arc-ticker-user">@{item.username}</span>}
+      <span className="arc-ticker-text">
+        {typed}
+        {phase === 'typing' && <span className="arc-ticker-cursor">▍</span>}
+      </span>
+      {item.link && phase !== 'typing' && (
         <a
           className="arc-ticker-link"
           href={item.link.href}
