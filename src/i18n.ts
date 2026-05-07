@@ -87,7 +87,7 @@ const en: Translation = {
   resolution: 'Resolution',
   frameRate: 'Frame rate',
   mirror: 'Mirror',
-  audioPassthrough: 'Audio passthrough',
+  audioPassthrough: 'Audio passthrough — hear game audio through speakers',
   recordMic: 'Record mic',
   webcamPip: 'Webcam picture-in-picture',
   micSource: 'Mic source',

@@ -86,7 +86,7 @@ input {
 }
 
 .arc-brand-logo {
-  height: 24px;
+  height: 20px;
   width: auto;
   display: block;
 }
@@ -215,20 +215,58 @@ input {
   border: 1px solid rgba(39, 212, 179, 0.3);
 }
 
-.arc-end {
+/* Session button — Start / Resume / End all share this slot in the topbar.
+ * .arc-session-go is the eye-catching coral state (Start, Resume).
+ * .arc-session-end is the muted secondary state (End — destructive but
+ * non-attention-grabbing so the user doesn't end by accident). */
+.arc-session {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: 'Nekst', 'Onest', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  transition: filter 0.12s, color 0.15s, border-color 0.15s, background 0.15s;
+  border: 1px solid transparent;
+}
+.arc-session-go {
+  background: var(--accent);
+  color: #fff;
+}
+.arc-session-go:hover {
+  filter: brightness(1.08);
+}
+.arc-session-end {
+  background: transparent;
+  border-color: var(--arc-border);
+  color: var(--arc-muted);
+}
+.arc-session-end:hover {
+  color: var(--arc-fg);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Topbar icon buttons (e.g., Fullscreen). Same shape as dock tools but
+ * smaller and topbar-styled. */
+.arc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border-radius: 6px;
   background: transparent;
   border: 1px solid var(--arc-border);
   color: var(--arc-muted);
   cursor: pointer;
-  font-size: 12px;
   transition: color 0.15s, border-color 0.15s;
 }
-.arc-end:hover {
+.arc-icon-btn:hover {
   color: var(--arc-fg);
   border-color: rgba(255, 255, 255, 0.2);
 }

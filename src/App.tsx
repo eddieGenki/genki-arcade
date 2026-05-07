@@ -796,7 +796,32 @@ export default function App() {
         )}
 
         {running && (
-          <button className="arc-end" onClick={stopStreams} type="button">
+          <button
+            className="arc-icon-btn"
+            onClick={toggleFullscreen}
+            type="button"
+            aria-label={isFullscreen ? `Exit ${t.fullscreen.toLowerCase()}` : t.fullscreen}
+            title={isFullscreen ? `Exit ${t.fullscreen.toLowerCase()}` : t.fullscreen}
+          >
+            <Icon name="fullscreen" size={14} />
+          </button>
+        )}
+
+        {/* Session button: Start when no permission, Resume when paused, End when live. */}
+        {!hasAccess && (
+          <button className="arc-session arc-session-go" onClick={requestInitialPermission} type="button">
+            <Icon name="play" size={14} />
+            <span>{t.start}</span>
+          </button>
+        )}
+        {hasAccess && !running && (
+          <button className="arc-session arc-session-go" onClick={start} type="button">
+            <Icon name="play" size={14} />
+            <span>{t.resume}</span>
+          </button>
+        )}
+        {running && (
+          <button className="arc-session arc-session-end" onClick={stopStreams} type="button">
             <Icon name="close" size={14} />
             <span>{t.end}</span>
           </button>
@@ -815,23 +840,8 @@ export default function App() {
 
       {/* STAGE */}
       <main className="arc-stage" ref={stageRef as React.RefObject<HTMLElement>}>
-        {!hasAccess && (
-          <IdleHero
-            t={t}
-            onStart={requestInitialPermission}
-            showUpsell={showUpsell}
-            onDismissUpsell={dismissUpsell}
-            label={t.start}
-          />
-        )}
-        {hasAccess && !running && (
-          <IdleHero
-            t={t}
-            onStart={start}
-            showUpsell={showUpsell}
-            onDismissUpsell={dismissUpsell}
-            label={t.resume}
-          />
+        {!running && (
+          <IdleHero t={t} showUpsell={showUpsell} onDismissUpsell={dismissUpsell} />
         )}
 
         <video
@@ -999,30 +1009,12 @@ export default function App() {
 
           <div className="arc-tools-divider" />
 
-          {/* Modifiers */}
+          {/* Live-feed modifiers — affect what you see/hear right now */}
           <ToolBtn
             icon="audio"
             label={t.audioPassthrough}
             active={audioOn}
             onClick={() => setAudioOn((v) => !v)}
-            onTooltipEnter={onIconEnter}
-            onTooltipLeave={onIconLeave}
-          />
-          <ToolBtn
-            icon="mic"
-            label={t.recordMic}
-            active={micOn}
-            onClick={() => setMicOn((v) => !v)}
-            disabled={!running}
-            onTooltipEnter={onIconEnter}
-            onTooltipLeave={onIconLeave}
-          />
-          <ToolBtn
-            icon="webcam"
-            label={t.webcamPip}
-            active={pipOn}
-            onClick={() => setPipOn((v) => !v)}
-            disabled={!running}
             onTooltipEnter={onIconEnter}
             onTooltipLeave={onIconLeave}
           />
@@ -1037,7 +1029,7 @@ export default function App() {
 
           <div className="arc-tools-divider" />
 
-          {/* Actions */}
+          {/* Capture group — produces output files */}
           <ToolBtn
             icon="snapshot"
             label={t.snapshot}
@@ -1046,28 +1038,33 @@ export default function App() {
             onTooltipEnter={onIconEnter}
             onTooltipLeave={onIconLeave}
           />
-          <button
-            className={`arc-rec-btn ${recording ? 'is-recording' : ''}`}
-            onMouseEnter={onIconEnter(recording ? t.stop : t.record)}
-            onMouseLeave={onIconLeave}
-            onFocus={onIconEnter(recording ? t.stop : t.record)}
-            onBlur={onIconLeave}
-            onClick={() => {
-              onIconLeave();
-              if (recording) stopRecording();
-              else startRecording();
-            }}
-            disabled={!running}
-            aria-label={recording ? t.stop : t.record}
-            type="button"
-          >
-            {recording ? <Icon name="stop" size={14} /> : <Icon name="record" size={16} />}
-            <span>{recording ? fmtTime(recElapsed) : t.rec}</span>
-          </button>
           <ToolBtn
-            icon="fullscreen"
-            label={isFullscreen ? `Exit ${t.fullscreen.toLowerCase()}` : t.fullscreen}
-            onClick={toggleFullscreen}
+            icon={recording ? 'stop' : 'record'}
+            label={recording ? t.stop : t.record}
+            active={recording}
+            onClick={() => (recording ? stopRecording() : startRecording())}
+            disabled={!running}
+            onTooltipEnter={onIconEnter}
+            onTooltipLeave={onIconLeave}
+          />
+          <ToolBtn
+            icon="mic"
+            label={t.recordMic}
+            active={micOn}
+            onClick={() => setMicOn((v) => !v)}
+            disabled={!running}
+            onTooltipEnter={onIconEnter}
+            onTooltipLeave={onIconLeave}
+          />
+
+          <div className="arc-tools-divider" />
+
+          {/* PiP — separate group: webcam adds an entirely new stream / overlay */}
+          <ToolBtn
+            icon="webcam"
+            label={t.webcamPip}
+            active={pipOn}
+            onClick={() => setPipOn((v) => !v)}
             disabled={!running}
             onTooltipEnter={onIconEnter}
             onTooltipLeave={onIconLeave}
@@ -1209,16 +1206,12 @@ function UpsellCard({ t, onDismiss }: { t: ReturnType<typeof useTranslation>; on
 
 function IdleHero({
   t,
-  onStart,
   showUpsell,
   onDismissUpsell,
-  label,
 }: {
   t: ReturnType<typeof useTranslation>;
-  onStart: () => void;
   showUpsell: boolean;
   onDismissUpsell: () => void;
-  label: string;
 }) {
   return (
     <div className="arc-idle">
@@ -1232,10 +1225,6 @@ function IdleHero({
           <QuickStep n="03" title={t.qs3Title} body={t.qs3Body} icon="play" />
         </div>
         {showUpsell && <UpsellCard t={t} onDismiss={onDismissUpsell} />}
-        <button className="arc-start" onClick={onStart} type="button">
-          <Icon name="play" size={16} />
-          <span>{label}</span>
-        </button>
       </div>
     </div>
   );
