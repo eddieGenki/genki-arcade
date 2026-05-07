@@ -1,0 +1,14 @@
+{
+  // Cloudflare Workers Static Assets config.
+  // Cloudflare Workers builds the project (per build command set in the
+  // dashboard) and serves the resulting `./dist` as static assets via the
+  // global edge CDN.
+  "name": "genki-arcade",
+  "compatibility_date": "2026-05-01",
+  "assets": {
+    "directory": "./dist",
+    // Single-page-app fallback: any unknown path returns index.html so
+    // client-side routing works. Harmless for our current single-page UI.
+    "not_found_handling": "single-page-application"
+  }
+}
