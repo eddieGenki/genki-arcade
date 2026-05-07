@@ -221,28 +221,30 @@ input {
   border: 1px solid rgba(39, 212, 179, 0.3);
 }
 
-/* Session button — Start / Resume / End share one consistent treatment
- * so the topbar doesn't visually shift between states. The icon (play vs.
- * close) carries the meaning, not the color. */
+/* Session button — Start / Resume / End all share one filled-coral
+ * treatment so the topbar always has a clear primary action. Icon
+ * (play vs. close) carries the directional meaning. */
 .arc-session {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 7px 14px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   font-family: 'Nekst', 'Onest', sans-serif;
   font-weight: 600;
   letter-spacing: 0.04em;
-  background: transparent;
-  border: 1px solid var(--arc-border);
-  color: var(--arc-muted);
-  transition: color 0.15s, border-color 0.15s;
+  background: var(--coral);
+  border: 1px solid transparent;
+  color: #fff;
+  transition: filter 0.15s, transform 0.1s;
 }
 .arc-session:hover {
-  color: var(--arc-fg);
-  border-color: rgba(255, 255, 255, 0.2);
+  filter: brightness(1.08);
+}
+.arc-session:active {
+  transform: translateY(1px);
 }
 
 /* Topbar icon buttons (e.g., Fullscreen). Same shape as dock tools but
@@ -747,7 +749,9 @@ input {
   gap: 6px;
   padding: 14px 20px;
   flex-wrap: nowrap; /* keep on one row; ticker shrinks to fit, doesn't push others to a new line */
-  overflow: hidden;
+  /* No overflow: hidden here — it would clip the Settings popover that pops
+   * UPWARD out of the dock. Containment is handled per-slot (the ticker
+   * slot has its own overflow: hidden). */
 }
 .arc-tools-divider {
   width: 1px;
