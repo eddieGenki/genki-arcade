@@ -67,10 +67,11 @@ const en: Translation = {
   qs1Title: 'Plug in',
   qs1Body:
     "Connect your capture card to your console's HDMI out, then USB-C into this device.",
-  qs2Title: 'Allow access',
-  qs2Body: 'Grant camera and microphone permission when prompted.',
-  qs3Title: 'Press start',
-  qs3Body: "Hit Start and play. We'll route audio passthrough automatically.",
+  qs2Title: 'Press start',
+  qs2Body: 'Click the Start button in the upper-right.',
+  qs3Title: 'Allow access',
+  qs3Body:
+    "Grant camera and microphone permission when prompted. We'll route audio passthrough automatically.",
   start: 'Start',
   resume: 'Resume',
 

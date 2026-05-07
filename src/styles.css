@@ -825,6 +825,40 @@ input {
   accent-color: var(--accent);
 }
 
+.arc-format-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  cursor: help;
+  border: 1px solid transparent;
+}
+.arc-format-uncompressed {
+  background: rgba(39, 212, 179, 0.08);
+  color: var(--teal);
+  border-color: rgba(39, 212, 179, 0.2);
+}
+.arc-format-mjpg {
+  background: rgba(248, 100, 97, 0.08);
+  color: #ffaf6a;
+  border-color: rgba(248, 100, 97, 0.18);
+}
+.arc-format-mark {
+  font-size: 12px;
+  line-height: 1;
+}
+.arc-format-sub {
+  color: var(--arc-muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .arc-swap {
   display: flex;
   align-items: center;

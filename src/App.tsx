@@ -22,6 +22,19 @@ function pickShadowcast(devices: DeviceInfo[]): DeviceInfo | undefined {
   );
 }
 
+// Predict whether a given resolution + framerate combo will be delivered
+// uncompressed (YUY2/NV12, ~16 bits per pixel) or compressed in MJPG.
+// Heuristic: if uncompressed bandwidth exceeds ~4 Gbps (the practical USB 3.0
+// isochronous ceiling for a single capture card), the device almost always
+// falls back to MJPG. Generic — works for any UVC capture card. Will be
+// replaced with per-device lookup tables for known Genki devices once we
+// validate against real ShadowCast hardware.
+const USB3_PRACTICAL_BPS = 4_000_000_000;
+function expectedFormat(w: number, h: number, fps: number): 'uncompressed' | 'mjpg' {
+  const bps = w * h * fps * 16; // YUY2 = 16 bits/pixel
+  return bps <= USB3_PRACTICAL_BPS ? 'uncompressed' : 'mjpg';
+}
+
 // Compute the area within a stage element that the main <video> actually
 // occupies (object-fit: contain leaves letterbox bars). Used to translate
 // PiP screen position into canvas (native video) coordinates.
@@ -760,6 +773,10 @@ export default function App() {
     return `${actualW}×${actualH}`;
   })();
 
+  // Format prediction for the user-selected resolution + fps combo
+  const [reqW, reqH] = resolution.split('x').map(Number);
+  const currentFormat = expectedFormat(reqW, reqH, fps);
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -981,22 +998,52 @@ export default function App() {
                         value={resolution}
                         onChange={(e) => setResolution(e.target.value)}
                       >
-                        {RESOLUTION_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
+                        {RESOLUTION_OPTIONS.map((o) => {
+                          const [w, h] = o.value.split('x').map(Number);
+                          const fmt = expectedFormat(w, h, fps);
+                          return (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                              {fmt === 'mjpg' ? ' — MJPG' : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     </SettingRow>
                     <SettingRow label={t.frameRate}>
                       <select value={fps} onChange={(e) => setFps(Number(e.target.value))}>
-                        {FPS_OPTIONS.map((f) => (
-                          <option key={f} value={f}>
-                            {f} fps
-                          </option>
-                        ))}
+                        {FPS_OPTIONS.map((f) => {
+                          const fmt = expectedFormat(reqW, reqH, f);
+                          return (
+                            <option key={f} value={f}>
+                              {f} fps
+                              {fmt === 'mjpg' ? ' — MJPG' : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     </SettingRow>
+                    <div
+                      className={`arc-format-row arc-format-${currentFormat}`}
+                      title={
+                        currentFormat === 'mjpg'
+                          ? 'This combo exceeds USB 3.0 uncompressed bandwidth, so the capture card encodes to MJPG. Quality is still high but colors can look a bit flatter.'
+                          : 'YUY2 / NV12 uncompressed — the capture card sends raw pixels, full color fidelity.'
+                      }
+                    >
+                      <span className="arc-format-mark">
+                        {currentFormat === 'mjpg' ? '▲' : '●'}
+                      </span>
+                      {currentFormat === 'mjpg' ? (
+                        <span>
+                          MJPG <span className="arc-format-sub">— compressed</span>
+                        </span>
+                      ) : (
+                        <span>
+                          Uncompressed <span className="arc-format-sub">— best color</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -1286,8 +1333,8 @@ function IdleHero({
         <p className="arc-idle-sub">{t.heroSub}</p>
         <div className="arc-quickstart">
           <QuickStep n="01" title={t.qs1Title} body={t.qs1Body} icon="plug" />
-          <QuickStep n="02" title={t.qs2Title} body={t.qs2Body} icon="shield" />
-          <QuickStep n="03" title={t.qs3Title} body={t.qs3Body} icon="play" />
+          <QuickStep n="02" title={t.qs2Title} body={t.qs2Body} icon="play" />
+          <QuickStep n="03" title={t.qs3Title} body={t.qs3Body} icon="shield" />
         </div>
         {showUpsell && <UpsellCard t={t} onDismiss={onDismissUpsell} />}
       </div>
