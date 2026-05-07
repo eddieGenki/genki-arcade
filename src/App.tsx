@@ -763,6 +763,11 @@ export default function App() {
             <span className="arc-pill arc-pill-live">
               <span className="arc-dot arc-dot-live" />
               {t.live}
+              {activeVideoLabel && (
+                <span className="arc-pill-meta">
+                  · {activeVideoLabel} · {resolutionShort} · {actualFps} fps
+                </span>
+              )}
             </span>
           )}
           {running && recording && (
@@ -770,6 +775,11 @@ export default function App() {
               <span className="arc-rec-blip" />
               {t.rec}
               <span className="arc-rec-time">{fmtTime(recElapsed)}</span>
+              {activeVideoLabel && (
+                <span className="arc-pill-meta">
+                  · {activeVideoLabel} · {resolutionShort} · {actualFps} fps
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -835,19 +845,6 @@ export default function App() {
             filter: adjustmentsActive ? filterCss : undefined,
           }}
         />
-
-        {/* Live overlay pill */}
-        {running && (
-          <div className="arc-stage-overlay">
-            <div className="arc-overlay-pill">
-              {activeVideoLabel || 'Capture device'}
-              <span className="arc-overlay-sep">·</span>
-              {resolutionShort}
-              <span className="arc-overlay-sep">·</span>
-              {actualFps} fps
-            </div>
-          </div>
-        )}
 
         {/* PiP webcam overlay */}
         {pipOn && running && (
