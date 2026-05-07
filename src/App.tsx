@@ -1,29 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import logoUrl from './assets/genki-logo.png';
+import sc3CableUrl from './assets/sc3-cable.jpg';
+import { Icon } from './icons';
+import { pickLanguage, useTranslation } from './i18n';
 
 type DeviceInfo = { deviceId: string; label: string };
 
 const SHADOWCAST_HINTS = ['shadowcast', 'shadow cast', 'genki'];
+const SHADOWCAST3_HINT = /shadowcast\s*3/i;
+const SHOPIFY_SHADOWCAST3_URL = 'https://www.genkithings.com/products/shadowcast-3-pro';
 
-// Heuristic: is this device label likely a Genki capture card?
 function isGenkiDevice(label: string | undefined): boolean {
   if (!label) return false;
   const l = label.toLowerCase();
   return SHADOWCAST_HINTS.some((h) => l.includes(h));
 }
-
-// Common resolutions/framerates we'll offer when the device's reported
-// capabilities are too coarse to enumerate exactly. We always try, and the
-// browser will clamp via applyConstraints.
-const FALLBACK_RESOLUTIONS: Array<[number, number, string]> = [
-  [3840, 2160, '4K UHD'],
-  [2560, 1440, '1440p'],
-  [1920, 1080, '1080p'],
-  [1280, 720, '720p'],
-  [854, 480, '480p'],
-];
-
-const FALLBACK_FPS = [120, 60, 50, 30, 24];
 
 function pickShadowcast(devices: DeviceInfo[]): DeviceInfo | undefined {
   return devices.find((d) =>
@@ -49,13 +40,28 @@ function getDisplayedVideoRect(vw: number, vh: number, sw: number, sh: number) {
   return { x: (sw - dw) / 2, y: (sh - dh) / 2, w: dw, h: dh };
 }
 
+const RESOLUTION_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '3840x2160', label: '4K UHD (3840×2160)' },
+  { value: '2560x1440', label: '1440p (2560×1440)' },
+  { value: '1920x1080', label: '1080p (1920×1080)' },
+  { value: '1280x720', label: '720p (1280×720)' },
+];
+
+const FPS_OPTIONS = [120, 60, 30];
+
 export default function App() {
+  const t = useTranslation(pickLanguage());
+
+  // ---- DOM refs ------------------------------------------------------------
   const videoRef = useRef<HTMLVideoElement>(null);
+  const stageRef = useRef<HTMLElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const videoStreamRef = useRef<MediaStream | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
 
+  // ---- Devices -------------------------------------------------------------
   const [videoDevices, setVideoDevices] = useState<DeviceInfo[]>([]);
   const [audioDevices, setAudioDevices] = useState<DeviceInfo[]>([]);
   const [outputDevices, setOutputDevices] = useState<DeviceInfo[]>([]);
@@ -64,27 +70,72 @@ export default function App() {
   const [audioDeviceId, setAudioDeviceId] = useState<string>('');
   const [outputDeviceId, setOutputDeviceId] = useState<string>('default');
 
+  // ---- Capture settings ----------------------------------------------------
   const [resolution, setResolution] = useState<string>('1920x1080');
   const [fps, setFps] = useState<number>(60);
   const [mirrored, setMirrored] = useState<boolean>(false);
   const [audioOn, setAudioOn] = useState<boolean>(true);
+
+  // ---- Mic ---------------------------------------------------------------
   const [micOn, setMicOn] = useState<boolean>(false);
   const [micDeviceId, setMicDeviceId] = useState<string>('');
-
   const micStreamRef = useRef<MediaStream | null>(null);
   const micNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const mixDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
+  // ---- Session state ------------------------------------------------------
   const [running, setRunning] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [actualSettings, setActualSettings] = useState<MediaTrackSettings | null>(null);
   const [hasAccess, setHasAccess] = useState<boolean>(false);
 
-  const stageRef = useRef<HTMLElement>(null);
+  // ---- Recording ----------------------------------------------------------
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<BlobPart[]>([]);
+  const recordingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const recordingRafRef = useRef<number>(0);
   const [recording, setRecording] = useState<boolean>(false);
+  const [recElapsed, setRecElapsed] = useState<number>(0);
+
+  // ---- Other UI -----------------------------------------------------------
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [tooltip, setTooltip] = useState<{ label: string; cx: number; ty: number } | null>(null);
+
+  // ShadowCast 3 upsell — dismiss persists in localStorage.
+  const [upsellDismissed, setUpsellDismissedState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('arcadeUpsellDismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const dismissUpsell = useCallback(() => {
+    setUpsellDismissedState(true);
+    try {
+      localStorage.setItem('arcadeUpsellDismissed', 'true');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  // ---- Image adjustments (state only — UI hidden in this design pass) -----
+  // Preserved so the canvas pipeline still receives them. We can re-introduce
+  // the popover later as a settings entry.
+  const [brightness] = useState<number>(1);
+  const [contrast] = useState<number>(1);
+  const [saturation] = useState<number>(1);
+  const filterCss = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})`;
+  const adjustmentsActive = brightness !== 1 || contrast !== 1 || saturation !== 1;
+
+  // ---- PiP ----------------------------------------------------------------
+  const pipVideoRef = useRef<HTMLVideoElement>(null);
+  const pipStreamRef = useRef<MediaStream | null>(null);
+  const [pipOn, setPipOn] = useState<boolean>(false);
+  const [pipDeviceId] = useState<string>(''); // default: built-in webcam
+  const [pipMirrored, setPipMirrored] = useState<boolean>(true);
+  const [pipPos, setPipPos] = useState<{ x: number; y: number }>({ x: -1, y: -1 });
+  const [pipSize] = useState<{ w: number; h: number }>({ w: 200, h: 150 });
 
   // Live snapshot of visual settings, read by the recording RAF loop so
   // mid-recording toggles take effect without restarting the recorder.
@@ -96,25 +147,9 @@ export default function App() {
     filterCss: 'none',
   });
 
-  // Image adjustments (compensates for washed-out MJPEG look on cheap cards) -
-  const [brightness, setBrightness] = useState<number>(1);
-  const [contrast, setContrast] = useState<number>(1);
-  const [saturation, setSaturation] = useState<number>(1);
-  const [imgPanelOpen, setImgPanelOpen] = useState<boolean>(false);
-  const filterCss = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})`;
-  const adjustmentsActive = brightness !== 1 || contrast !== 1 || saturation !== 1;
-
-  // PiP webcam overlay --------------------------------------------------------
-  const pipVideoRef = useRef<HTMLVideoElement>(null);
-  const pipStreamRef = useRef<MediaStream | null>(null);
-  const [pipOn, setPipOn] = useState<boolean>(false);
-  const [pipDeviceId, setPipDeviceId] = useState<string>('');
-  const [pipMirrored, setPipMirrored] = useState<boolean>(true); // webcam = self-image, default mirrored
-  const [pipPos, setPipPos] = useState<{ x: number; y: number }>({ x: -1, y: -1 }); // -1 = use default corner
-  const [pipSize, setPipSize] = useState<{ w: number; h: number }>({ w: 320, h: 180 });
-
-  // ----- Device enumeration ---------------------------------------------------
-
+  // -------------------------------------------------------------------------
+  // Device enumeration
+  // -------------------------------------------------------------------------
   const refreshDevices = useCallback(async () => {
     const all = await navigator.mediaDevices.enumerateDevices();
     const vids: DeviceInfo[] = all
@@ -136,9 +171,6 @@ export default function App() {
     setAudioDeviceId((cur) => cur || pickShadowcast(mics)?.deviceId || mics[0]?.deviceId || '');
   }, []);
 
-  // First-run permission grant. Browsers hide labels until permission is given.
-  // After this resolves, the auto-start effect will pick up `hasAccess` and
-  // begin streaming.
   const requestInitialPermission = useCallback(async () => {
     setError('');
     try {
@@ -152,29 +184,25 @@ export default function App() {
   }, [refreshDevices]);
 
   useEffect(() => {
-    // Try to populate the picker immediately. If permission was previously
-    // granted on this origin, labels will be present; if not, the user clicks
-    // "Start" once to grant.
     refreshDevices();
     const handler = () => refreshDevices();
     navigator.mediaDevices.addEventListener('devicechange', handler);
     return () => navigator.mediaDevices.removeEventListener('devicechange', handler);
   }, [refreshDevices]);
 
-  // If permission is already granted on this origin (HTTPS/Electron, not file://),
-  // skip the manual Start button and go straight to streaming.
+  // Skip the manual Start button if permission was already granted.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!('permissions' in navigator)) return;
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const cam = await (navigator as any).permissions.query({ name: 'camera' });
         if (!cancelled && cam.state === 'granted') {
           requestInitialPermission();
         }
       } catch {
-        // Firefox doesn't support the 'camera' permission name; that's fine —
-        // the user will just see the Start button.
+        /* Firefox doesn't support 'camera' — fine, user clicks Start. */
       }
     })();
     return () => {
@@ -182,16 +210,17 @@ export default function App() {
     };
   }, [requestInitialPermission]);
 
-  // ----- Stream lifecycle -----------------------------------------------------
-
+  // -------------------------------------------------------------------------
+  // Stream lifecycle
+  // -------------------------------------------------------------------------
   const stopStreams = useCallback(() => {
-    // Stop any in-progress recording first so we don't dangle a recorder.
     if (recorderRef.current && recorderRef.current.state === 'recording') {
       cancelAnimationFrame(recordingRafRef.current);
       recordingRafRef.current = 0;
       recorderRef.current.stop();
       recorderRef.current = null;
       setRecording(false);
+      setRecElapsed(0);
     }
 
     videoStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -221,7 +250,6 @@ export default function App() {
     const [w, h] = resolution.split('x').map(Number);
 
     try {
-      // VIDEO ------------------------------------------------------------------
       const videoConstraints: MediaTrackConstraints = {
         width: { ideal: w },
         height: { ideal: h },
@@ -237,29 +265,24 @@ export default function App() {
 
       if (videoRef.current) {
         videoRef.current.srcObject = videoStream;
-        // Lowest-latency render path: <video> srcObject. No canvas in the
-        // hot path. autoplay+muted+playsinline ensures it actually plays.
         await videoRef.current.play().catch(() => {});
       }
 
       const vTrack = videoStream.getVideoTracks()[0];
       setActualSettings(vTrack.getSettings());
 
-      // AUDIO ------------------------------------------------------------------
-      // Always create the audio graph: it lets us mix game audio + mic into
-      // one stream for recording, even when passthrough is off.
+      // Audio graph: always-on so mic + game audio can mix into one stream.
       const ctx = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
       audioCtxRef.current = ctx;
       const mixDest = ctx.createMediaStreamDestination();
       mixDestRef.current = mixDest;
 
-      // Game audio: low-latency, all DSP disabled. Goes to BOTH speakers
-      // (monitoring) and the mix (recording).
       if (audioOn) {
         const audioConstraints: MediaTrackConstraints = {
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ...({
             googEchoCancellation: false,
             googAutoGainControl: false,
@@ -278,12 +301,13 @@ export default function App() {
 
         const src = ctx.createMediaStreamSource(audioStream);
         audioNodeRef.current = src;
-        src.connect(ctx.destination); // monitor through speakers
-        src.connect(mixDest); // include in recording
+        src.connect(ctx.destination);
+        src.connect(mixDest);
 
-        // Route monitoring to chosen output device if supported.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (outputDeviceId && outputDeviceId !== 'default' && (ctx as any).setSinkId) {
           try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (ctx as any).setSinkId(outputDeviceId);
           } catch (e) {
             console.warn('setSinkId failed:', e);
@@ -298,22 +322,16 @@ export default function App() {
     }
   }, [resolution, fps, videoDeviceId, audioDeviceId, outputDeviceId, audioOn, stopStreams]);
 
-  // Auto-start as soon as we have permission. Restart whenever the user
-  // picks a different device or toggles audio passthrough.
+  // Auto-start when access available; restart on source changes.
   useEffect(() => {
     if (!hasAccess) return;
     start();
-    // We deliberately do NOT include `start` in deps — start is recreated
-    // on every relevant state change already, and including it would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAccess, videoDeviceId, audioDeviceId, audioOn]);
 
   // Mic capture (recorded into the mix, not monitored through speakers).
-  // Voice DSP is intentionally enabled — voice benefits from echo cancel,
-  // noise suppression, AGC. Game audio still bypasses all of that.
   useEffect(() => {
     let cancelled = false;
-
     const teardown = () => {
       micStreamRef.current?.getTracks().forEach((t) => t.stop());
       micStreamRef.current = null;
@@ -347,7 +365,7 @@ export default function App() {
         micStreamRef.current = stream;
         const src = audioCtxRef.current.createMediaStreamSource(stream);
         micNodeRef.current = src;
-        src.connect(mixDestRef.current); // recording only — never connected to ctx.destination
+        src.connect(mixDestRef.current);
       } catch (e) {
         setError(`Mic failed: ${(e as Error).message}`);
         setMicOn(false);
@@ -359,8 +377,7 @@ export default function App() {
     };
   }, [micOn, micDeviceId, running]);
 
-  // Re-apply video constraints on the fly (no full restart) when the user
-  // changes resolution or fps while running.
+  // Re-apply video constraints on the fly when resolution / fps change.
   useEffect(() => {
     if (!running) return;
     const track = videoStreamRef.current?.getVideoTracks()[0];
@@ -378,7 +395,7 @@ export default function App() {
 
   useEffect(() => () => stopStreams(), [stopStreams]);
 
-  // Keep capture settings ref in sync with live state for the recording RAF.
+  // Sync capture settings ref for recording loop.
   useEffect(() => {
     captureSettingsRef.current = {
       mirrored,
@@ -389,10 +406,80 @@ export default function App() {
     };
   });
 
-  // ----- Composite drawing (shared by screenshot and recording) ---------------
-  // Draws main video + optional PiP overlay onto a canvas, honoring mirror
-  // and image adjustments. The canvas is sized to the main video's native
-  // resolution so output is full quality.
+  // -------------------------------------------------------------------------
+  // PiP webcam stream
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    let cancelled = false;
+    if (!pipOn) {
+      pipStreamRef.current?.getTracks().forEach((t) => t.stop());
+      pipStreamRef.current = null;
+      if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
+      return;
+    }
+    (async () => {
+      try {
+        const constraints: MediaStreamConstraints = {
+          video: pipDeviceId
+            ? {
+                deviceId: { exact: pipDeviceId },
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+              }
+            : { width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        pipStreamRef.current?.getTracks().forEach((t) => t.stop());
+        pipStreamRef.current = stream;
+        if (pipVideoRef.current) {
+          pipVideoRef.current.srcObject = stream;
+          pipVideoRef.current.play().catch(() => {});
+        }
+      } catch (e) {
+        setError(`Webcam failed: ${(e as Error).message}`);
+        setPipOn(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pipOn, pipDeviceId]);
+
+  const onPipMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const stage = stageRef.current;
+    const pip = e.currentTarget;
+    if (!stage) return;
+    const stageRect = stage.getBoundingClientRect();
+    const pipRect = pip.getBoundingClientRect();
+    const offsetX = e.clientX - pipRect.left;
+    const offsetY = e.clientY - pipRect.top;
+    const onMove = (ev: MouseEvent) => {
+      const x = ev.clientX - stageRect.left - offsetX;
+      const y = ev.clientY - stageRect.top - offsetY;
+      const maxX = stageRect.width - pipRect.width;
+      const maxY = stageRect.height - pipRect.height;
+      setPipPos({
+        x: Math.max(0, Math.min(maxX, x)),
+        y: Math.max(0, Math.min(maxY, y)),
+      });
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+
+  // -------------------------------------------------------------------------
+  // Composite drawing (screenshot + recording)
+  // -------------------------------------------------------------------------
   const drawComposite = useCallback((canvas: HTMLCanvasElement) => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
@@ -406,11 +493,9 @@ export default function App() {
       filterCss: fCss,
     } = captureSettingsRef.current;
 
-    // Match canvas to native video resolution.
     if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
     if (canvas.height !== video.videoHeight) canvas.height = video.videoHeight;
 
-    // Main pass: mirror + filter applied.
     ctx.save();
     ctx.filter = aFlag ? fCss : 'none';
     if (mFlag) {
@@ -420,7 +505,6 @@ export default function App() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
-    // PiP overlay pass.
     const pipVid = pipVideoRef.current;
     const stage = stageRef.current;
     if (pFlag && pipVid && pipVid.videoWidth && stage) {
@@ -440,7 +524,6 @@ export default function App() {
         const cy = (pipRect.top - stageRect.top - disp.y) * sy;
         const cw = pipRect.width * sx;
         const ch = pipRect.height * sy;
-
         ctx.save();
         ctx.filter = 'none';
         if (pmFlag) {
@@ -455,8 +538,6 @@ export default function App() {
     }
   }, []);
 
-  // ----- Screenshot -----------------------------------------------------------
-
   const takeScreenshot = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
@@ -464,7 +545,6 @@ export default function App() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     drawComposite(canvas);
-
     canvas.toBlob((blob) => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
@@ -477,13 +557,12 @@ export default function App() {
     }, 'image/png');
   }, [drawComposite]);
 
-  // ----- Recording ------------------------------------------------------------
-  // MediaRecorder doesn't support MJPEG. We pick the best codec the browser
-  // *does* support, in order of preference. VP9 is the closest analogue to
-  // "low-latency game capture" without going full WebCodecs.
+  // -------------------------------------------------------------------------
+  // Recording
+  // -------------------------------------------------------------------------
   const pickMimeType = (): string | undefined => {
     const candidates = [
-      'video/mp4;codecs=avc1.640028,mp4a.40.2', // H.264 high + AAC (Chrome ≥ 126)
+      'video/mp4;codecs=avc1.640028,mp4a.40.2',
       'video/webm;codecs=vp9,opus',
       'video/webm;codecs=vp8,opus',
       'video/webm',
@@ -493,11 +572,6 @@ export default function App() {
     }
     return undefined;
   };
-
-  // Recording uses a canvas pipeline so the encoded video matches what the
-  // user sees: PiP overlay, mirror, and image adjustments are all baked in.
-  const recordingCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const recordingRafRef = useRef<number>(0);
 
   const startRecording = useCallback(() => {
     if (!videoStreamRef.current) return;
@@ -516,9 +590,9 @@ export default function App() {
     };
     renderLoop();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const canvasStream = (canvas as any).captureStream(fps) as MediaStream;
     const tracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
-    // Pull audio from the mix destination so game audio + mic are combined.
     const mixStream = mixDestRef.current?.stream;
     if (mixStream) tracks.push(...mixStream.getAudioTracks());
     const combined = new MediaStream(tracks);
@@ -528,7 +602,7 @@ export default function App() {
     try {
       recorder = new MediaRecorder(combined, {
         mimeType,
-        videoBitsPerSecond: 20_000_000, // 20 Mbps — high quality 1080p60
+        videoBitsPerSecond: 20_000_000,
       });
     } catch (e) {
       cancelAnimationFrame(recordingRafRef.current);
@@ -552,14 +626,14 @@ export default function App() {
       a.download = `genki-arcade-${ts}.${ext}`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-
       canvasStream.getTracks().forEach((t) => t.stop());
       recordingCanvasRef.current = null;
     };
 
-    recorder.start(1000); // emit a chunk per second so memory doesn't pile up
+    recorder.start(1000);
     recorderRef.current = recorder;
     setRecording(true);
+    setRecElapsed(0);
   }, [fps, drawComposite]);
 
   const stopRecording = useCallback(() => {
@@ -568,83 +642,19 @@ export default function App() {
     recorderRef.current?.stop();
     recorderRef.current = null;
     setRecording(false);
+    setRecElapsed(0);
   }, []);
 
-  // ----- PiP webcam -----------------------------------------------------------
-
-  // Acquire / release the webcam stream when the toggle or device changes.
+  // Recording timer
   useEffect(() => {
-    let cancelled = false;
-    if (!pipOn) {
-      pipStreamRef.current?.getTracks().forEach((t) => t.stop());
-      pipStreamRef.current = null;
-      if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
-      return;
-    }
-    (async () => {
-      try {
-        const constraints: MediaStreamConstraints = {
-          video: pipDeviceId
-            ? { deviceId: { exact: pipDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
-            : { width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        };
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        // Stop any prior PiP stream.
-        pipStreamRef.current?.getTracks().forEach((t) => t.stop());
-        pipStreamRef.current = stream;
-        if (pipVideoRef.current) {
-          pipVideoRef.current.srcObject = stream;
-          pipVideoRef.current.play().catch(() => {});
-        }
-      } catch (e) {
-        setError(`Webcam failed: ${(e as Error).message}`);
-        setPipOn(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pipOn, pipDeviceId]);
+    if (!recording) return;
+    const id = setInterval(() => setRecElapsed((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [recording]);
 
-  // Drag the PiP overlay around inside the stage.
-  const onPipMouseDown = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      const stage = stageRef.current;
-      const pip = e.currentTarget;
-      if (!stage) return;
-      const stageRect = stage.getBoundingClientRect();
-      const pipRect = pip.getBoundingClientRect();
-      const offsetX = e.clientX - pipRect.left;
-      const offsetY = e.clientY - pipRect.top;
-
-      const onMove = (ev: MouseEvent) => {
-        const x = ev.clientX - stageRect.left - offsetX;
-        const y = ev.clientY - stageRect.top - offsetY;
-        const maxX = stageRect.width - pipRect.width;
-        const maxY = stageRect.height - pipRect.height;
-        setPipPos({
-          x: Math.max(0, Math.min(maxX, x)),
-          y: Math.max(0, Math.min(maxY, y)),
-        });
-      };
-      const onUp = () => {
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-      };
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    },
-    [],
-  );
-
-  // ----- Fullscreen -----------------------------------------------------------
-
+  // -------------------------------------------------------------------------
+  // Fullscreen
+  // -------------------------------------------------------------------------
   const toggleFullscreen = useCallback(async () => {
     if (!stageRef.current) return;
     if (document.fullscreenElement) {
@@ -660,10 +670,47 @@ export default function App() {
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
-  // ----- UI -------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Settings popover — close on outside click
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [settingsOpen]);
 
-  const resolutionOptions = useMemo(() => FALLBACK_RESOLUTIONS, []);
-  const fpsOptions = useMemo(() => FALLBACK_FPS, []);
+  // -------------------------------------------------------------------------
+  // Tooltip on icon hover
+  // -------------------------------------------------------------------------
+  const onIconEnter = useCallback(
+    (label: string) => (e: React.MouseEvent | React.FocusEvent) => {
+      const target = e.currentTarget as HTMLElement;
+      const r = target.getBoundingClientRect();
+      const containerRect = target.closest('.arc-app')?.getBoundingClientRect();
+      if (!containerRect) return;
+      setTooltip({
+        label,
+        cx: r.left + r.width / 2 - containerRect.left,
+        ty: r.top - containerRect.top,
+      });
+    },
+    [],
+  );
+  const onIconLeave = useCallback(() => setTooltip(null), []);
+
+  // -------------------------------------------------------------------------
+  // Derived state
+  // -------------------------------------------------------------------------
+  const fmtTime = (s: number) => {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const ss = (s % 60).toString().padStart(2, '0');
+    return `${m}:${ss}`;
+  };
 
   const settingsLabel = actualSettings
     ? `${actualSettings.width ?? '?'}×${actualSettings.height ?? '?'} @ ${
@@ -671,8 +718,6 @@ export default function App() {
       }fps`
     : '—';
 
-  // Active main video device label, if known. On file:// labels are stripped
-  // and we can't tell — so we render a neutral fallback.
   const activeVideoLabel =
     videoDevices.find((d) => d.deviceId === videoDeviceId)?.label || '';
   const activeAudioLabel =
@@ -680,84 +725,164 @@ export default function App() {
   const labelsKnown = videoDevices.some((d) => d.deviceId && d.label);
   const isShadowcastActive =
     isGenkiDevice(activeVideoLabel) || isGenkiDevice(activeAudioLabel);
+  const isShadowcast3 =
+    SHADOWCAST3_HINT.test(activeVideoLabel) || SHADOWCAST3_HINT.test(activeAudioLabel);
+  const showUpsell = !upsellDismissed && (!labelsKnown || !isShadowcast3);
 
+  const resolutionLabel =
+    RESOLUTION_OPTIONS.find((o) => o.value === resolution)?.label || resolution;
+  const resolutionShort = resolutionLabel.split(' ')[0];
+
+  // -------------------------------------------------------------------------
+  // Reusable subcomponents
+  // -------------------------------------------------------------------------
+  type ToolBtnProps = {
+    icon: Parameters<typeof Icon>[0]['name'];
+    label: string;
+    active?: boolean;
+    onClick?: () => void;
+    disabled?: boolean;
+  };
+  const ToolBtn = ({ icon, label, active, onClick, disabled }: ToolBtnProps) => (
+    <button
+      className={`arc-tool ${active ? 'is-active' : ''}`}
+      onMouseEnter={onIconEnter(label)}
+      onMouseLeave={onIconLeave}
+      onFocus={onIconEnter(label)}
+      onBlur={onIconLeave}
+      onClick={() => {
+        onIconLeave();
+        onClick?.();
+      }}
+      disabled={disabled}
+      aria-label={label}
+      type="button"
+    >
+      <Icon name={icon} size={18} />
+    </button>
+  );
+
+  // -------------------------------------------------------------------------
+  // Render
+  // -------------------------------------------------------------------------
   return (
-    <div className="app">
-      <header className="topbar">
-        <img src={logoUrl} alt="Genki" className="logo" />
-        <span className="brand-divider" aria-hidden />
-        <h1>Arcade</h1>
-        <span className="status">
-          {running ? `Live · ${settingsLabel}` : 'Idle'}
-          {recording && <span className="rec-dot" title="Recording" />}
-        </span>
-        <span className="grow" />
-        {error && <span className="status error">{error}</span>}
+    <div className="arc-app arc-theme-standard">
+      {/* TOPBAR */}
+      <header className="arc-topbar">
+        <div className="arc-brand">
+          <img className="arc-brand-logo" src={logoUrl} alt="Genki" />
+          <div className="arc-brand-divider" aria-hidden />
+          <span className="arc-brand-title">{t.arcade}</span>
+        </div>
+
+        <div className="arc-status">
+          {!running && (
+            <span className="arc-pill arc-pill-muted">
+              <span className="arc-dot arc-dot-muted" />
+              {t.idle}
+            </span>
+          )}
+          {running && !recording && (
+            <span className="arc-pill arc-pill-live">
+              <span className="arc-dot arc-dot-live" />
+              {t.live}
+              <span className="arc-pill-meta">· {settingsLabel}</span>
+            </span>
+          )}
+          {running && recording && (
+            <span className="arc-pill arc-pill-rec">
+              <span className="arc-rec-blip" />
+              {t.rec}
+              <span className="arc-rec-time">{fmtTime(recElapsed)}</span>
+            </span>
+          )}
+        </div>
+
+        <div className="arc-spacer" />
+
+        {error && <span className="arc-error">{error}</span>}
+
         {!error && labelsKnown && isShadowcastActive && (
-          <span className="promo good" title={activeVideoLabel}>
-            <span className="dot" /> ShadowCast connected
+          <span className="arc-promo arc-promo-good" title={activeVideoLabel}>
+            <Icon name="check" size={12} />
+            {t.shadowcastConnected}
           </span>
         )}
-        {!error && labelsKnown && !isShadowcastActive && running && (
-          <a
-            className="promo upsell"
-            href="https://www.genkithings.com/products/shadowcast-3-pro"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Want 4K@60? Get ShadowCast 3 →
-          </a>
+
+        {running && (
+          <button className="arc-end" onClick={stopStreams} type="button">
+            <Icon name="close" size={14} />
+            <span>{t.end}</span>
+          </button>
         )}
-        {!error && !labelsKnown && (
-          <a
-            className="promo neutral"
-            href="https://www.genkithings.com"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            genkithings.com →
-          </a>
-        )}
+
+        <a
+          className="arc-shoplink"
+          href="https://www.genkithings.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span>{t.shopLink}</span>
+          <Icon name="arrow" size={12} />
+        </a>
       </header>
 
-      <main className="stage" ref={stageRef as any}>
+      {/* STAGE */}
+      <main className="arc-stage" ref={stageRef as React.RefObject<HTMLElement>}>
         {!hasAccess && (
-          <div className="placeholder">
-            <div>Connect your ShadowCast and grant camera + microphone access.</div>
-            <button className="primary" onClick={requestInitialPermission}>
-              Start
-            </button>
-          </div>
+          <IdleHero
+            t={t}
+            onStart={requestInitialPermission}
+            showUpsell={showUpsell}
+            onDismissUpsell={dismissUpsell}
+            label={t.start}
+          />
         )}
         {hasAccess && !running && (
-          <div className="placeholder">
-            <div>Stream paused.</div>
-            <button className="primary" onClick={start}>
-              Resume
-            </button>
-          </div>
+          <IdleHero
+            t={t}
+            onStart={start}
+            showUpsell={showUpsell}
+            onDismissUpsell={dismissUpsell}
+            label={t.resume}
+          />
         )}
+
         <video
           ref={videoRef}
           autoPlay
           muted
           playsInline
-          className={mirrored ? 'mirrored' : ''}
+          className={`arc-video ${mirrored ? 'is-mirrored' : ''}`}
           style={{
             display: running ? 'block' : 'none',
             filter: adjustmentsActive ? filterCss : undefined,
           }}
         />
 
-        {pipOn && (
+        {/* Live overlay pill */}
+        {running && (
+          <div className="arc-stage-overlay">
+            <div className="arc-overlay-pill">
+              {activeVideoLabel || 'Capture device'}
+              <span className="arc-overlay-sep">·</span>
+              {resolutionShort}
+              <span className="arc-overlay-sep">·</span>
+              {fps} fps
+            </div>
+          </div>
+        )}
+
+        {/* PiP webcam overlay */}
+        {pipOn && running && (
           <div
-            className="pip"
+            className="arc-pip"
             onMouseDown={onPipMouseDown}
             style={{
               width: pipSize.w,
               height: pipSize.h,
               ...(pipPos.x < 0
-                ? { right: 16, bottom: 16 } // default: bottom-right
+                ? { right: 24, bottom: 24 }
                 : { left: pipPos.x, top: pipPos.y }),
             }}
           >
@@ -766,17 +891,18 @@ export default function App() {
               autoPlay
               muted
               playsInline
-              className={pipMirrored ? 'mirrored' : ''}
+              className={`arc-pip-cam ${pipMirrored ? 'is-mirrored' : ''}`}
             />
-            <div className="pip-toolbar">
+            <div className="arc-pip-toolbar">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setPipMirrored((m) => !m);
                 }}
                 title="Mirror webcam"
+                type="button"
               >
-                ⇋
+                <Icon name="mirror" size={12} />
               </button>
               <button
                 onClick={(e) => {
@@ -784,242 +910,302 @@ export default function App() {
                   setPipOn(false);
                 }}
                 title="Close webcam"
+                type="button"
               >
-                ×
+                <Icon name="close" size={12} />
               </button>
             </div>
           </div>
         )}
       </main>
 
-      <footer className="controls">
-        <label className="field">
-          Video device
-          <select value={videoDeviceId} onChange={(e) => setVideoDeviceId(e.target.value)}>
-            <option value="">Default (browser picks)</option>
-            {videoDevices
-              .filter((d) => d.deviceId)
-              .map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label}
-                </option>
-              ))}
-          </select>
-        </label>
+      {/* DOCK */}
+      <footer className="arc-dock">
+        <div className="arc-tools">
+          {/* Settings popover trigger */}
+          <div className="arc-settings-wrap" ref={settingsRef}>
+            <ToolBtn
+              icon="settings"
+              label={t.settings}
+              active={settingsOpen}
+              onClick={() => setSettingsOpen((o) => !o)}
+            />
+            {settingsOpen && (
+              <div className="arc-settings-popover">
+                <div className="arc-settings-head">
+                  <span className="arc-eyebrow">{t.settings}</span>
+                </div>
+                <div className="arc-settings-grid">
+                  <SettingRow label={t.videoDevice}>
+                    <select
+                      value={videoDeviceId}
+                      onChange={(e) => setVideoDeviceId(e.target.value)}
+                    >
+                      <option value="">Default (browser picks)</option>
+                      {videoDevices
+                        .filter((d) => d.deviceId)
+                        .map((d) => (
+                          <option key={d.deviceId} value={d.deviceId}>
+                            {d.label}
+                          </option>
+                        ))}
+                    </select>
+                  </SettingRow>
+                  <SettingRow label={t.audioInput}>
+                    <select
+                      value={audioDeviceId}
+                      onChange={(e) => setAudioDeviceId(e.target.value)}
+                    >
+                      <option value="">Default (browser picks)</option>
+                      {audioDevices
+                        .filter((d) => d.deviceId)
+                        .map((d) => (
+                          <option key={d.deviceId} value={d.deviceId}>
+                            {d.label}
+                          </option>
+                        ))}
+                    </select>
+                  </SettingRow>
+                  <SettingRow label={t.audioOutput}>
+                    <select
+                      value={outputDeviceId}
+                      onChange={(e) => setOutputDeviceId(e.target.value)}
+                    >
+                      <option value="default">System default</option>
+                      {outputDevices.map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label}
+                        </option>
+                      ))}
+                    </select>
+                  </SettingRow>
+                  <SettingRow label={t.resolution}>
+                    <select
+                      value={resolution}
+                      onChange={(e) => setResolution(e.target.value)}
+                    >
+                      {RESOLUTION_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </SettingRow>
+                  <SettingRow label={t.frameRate}>
+                    <select value={fps} onChange={(e) => setFps(Number(e.target.value))}>
+                      {FPS_OPTIONS.map((f) => (
+                        <option key={f} value={f}>
+                          {f} fps
+                        </option>
+                      ))}
+                    </select>
+                  </SettingRow>
+                  {micOn && (
+                    <SettingRow label={t.micSource}>
+                      <select
+                        value={micDeviceId}
+                        onChange={(e) => setMicDeviceId(e.target.value)}
+                      >
+                        <option value="">Default (built-in mic)</option>
+                        {audioDevices
+                          .filter((d) => d.deviceId && d.deviceId !== audioDeviceId)
+                          .map((d) => (
+                            <option key={d.deviceId} value={d.deviceId}>
+                              {d.label}
+                            </option>
+                          ))}
+                      </select>
+                    </SettingRow>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
-        <label className="field">
-          Audio input
-          <select value={audioDeviceId} onChange={(e) => setAudioDeviceId(e.target.value)}>
-            <option value="">Default (browser picks)</option>
-            {audioDevices
-              .filter((d) => d.deviceId)
-              .map((d) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label}
-                </option>
-              ))}
-          </select>
-        </label>
+          <div className="arc-tools-divider" />
 
-        <label className="field">
-          Audio output
-          <select value={outputDeviceId} onChange={(e) => setOutputDeviceId(e.target.value)}>
-            <option value="default">System default</option>
-            {outputDevices.map((d) => (
-              <option key={d.deviceId} value={d.deviceId}>
-                {d.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field">
-          Resolution
-          <select value={resolution} onChange={(e) => setResolution(e.target.value)}>
-            {resolutionOptions.map(([w, h, label]) => (
-              <option key={`${w}x${h}`} value={`${w}x${h}`}>
-                {label} ({w}×{h})
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="field">
-          Frame rate
-          <select value={fps} onChange={(e) => setFps(Number(e.target.value))}>
-            {fpsOptions.map((f) => (
-              <option key={f} value={f}>
-                {f} fps
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="toggle">
-          <input type="checkbox" checked={mirrored} onChange={(e) => setMirrored(e.target.checked)} />
-          Mirror
-        </label>
-
-        <label className="toggle">
-          <input type="checkbox" checked={audioOn} onChange={(e) => setAudioOn(e.target.checked)} />
-          Audio passthrough
-        </label>
-
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={micOn}
-            onChange={(e) => setMicOn(e.target.checked)}
+          {/* Modifiers */}
+          <ToolBtn
+            icon="audio"
+            label={t.audioPassthrough}
+            active={audioOn}
+            onClick={() => setAudioOn((v) => !v)}
+          />
+          <ToolBtn
+            icon="mic"
+            label={t.recordMic}
+            active={micOn}
+            onClick={() => setMicOn((v) => !v)}
             disabled={!running}
           />
-          Record mic
-        </label>
-
-        {micOn && (
-          <label className="field">
-            Mic source
-            <select value={micDeviceId} onChange={(e) => setMicDeviceId(e.target.value)}>
-              <option value="">Default (built-in mic)</option>
-              {audioDevices
-                .filter((d) => d.deviceId && d.deviceId !== audioDeviceId)
-                .map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label}
-                  </option>
-                ))}
-            </select>
-          </label>
-        )}
-
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={pipOn}
-            onChange={(e) => setPipOn(e.target.checked)}
+          <ToolBtn
+            icon="webcam"
+            label={t.webcamPip}
+            active={pipOn}
+            onClick={() => setPipOn((v) => !v)}
             disabled={!running}
           />
-          Webcam (PiP)
-        </label>
+          <ToolBtn
+            icon="mirror"
+            label={t.mirror}
+            active={mirrored}
+            onClick={() => setMirrored((v) => !v)}
+          />
 
-        {pipOn && (
-          <label className="field">
-            Webcam source
-            <select value={pipDeviceId} onChange={(e) => setPipDeviceId(e.target.value)}>
-              <option value="">Default (built-in webcam)</option>
-              {videoDevices
-                .filter((d) => d.deviceId && d.deviceId !== videoDeviceId)
-                .map((d) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label}
-                  </option>
-                ))}
-            </select>
-          </label>
-        )}
+          <div className="arc-tools-divider" />
 
-        <div className="popover-wrap">
+          {/* Actions */}
+          <ToolBtn
+            icon="snapshot"
+            label={t.snapshot}
+            onClick={takeScreenshot}
+            disabled={!running}
+          />
           <button
-            className={adjustmentsActive ? 'has-adjust' : ''}
-            onClick={() => setImgPanelOpen((o) => !o)}
+            className={`arc-rec-btn ${recording ? 'is-recording' : ''}`}
+            onMouseEnter={onIconEnter(recording ? t.stop : t.record)}
+            onMouseLeave={onIconLeave}
+            onFocus={onIconEnter(recording ? t.stop : t.record)}
+            onBlur={onIconLeave}
+            onClick={() => {
+              onIconLeave();
+              if (recording) stopRecording();
+              else startRecording();
+            }}
             disabled={!running}
+            aria-label={recording ? t.stop : t.record}
+            type="button"
           >
-            Image{adjustmentsActive ? ' •' : ''}
+            {recording ? <Icon name="stop" size={14} /> : <Icon name="record" size={16} />}
+            <span>{recording ? fmtTime(recElapsed) : t.rec}</span>
           </button>
-          {imgPanelOpen && (
-            <div className="popover">
-              <div className="popover-row">
-                <label>
-                  Brightness <span>{brightness.toFixed(2)}</span>
-                </label>
-                <input
-                  type="range"
-                  min={0.5}
-                  max={1.5}
-                  step={0.01}
-                  value={brightness}
-                  onChange={(e) => setBrightness(Number(e.target.value))}
-                />
-              </div>
-              <div className="popover-row">
-                <label>
-                  Contrast <span>{contrast.toFixed(2)}</span>
-                </label>
-                <input
-                  type="range"
-                  min={0.5}
-                  max={1.5}
-                  step={0.01}
-                  value={contrast}
-                  onChange={(e) => setContrast(Number(e.target.value))}
-                />
-              </div>
-              <div className="popover-row">
-                <label>
-                  Saturation <span>{saturation.toFixed(2)}</span>
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={2}
-                  step={0.01}
-                  value={saturation}
-                  onChange={(e) => setSaturation(Number(e.target.value))}
-                />
-              </div>
-              <div className="popover-actions">
-                <button
-                  onClick={() => {
-                    // Common compensation for washed-out MJPEG capture cards.
-                    setBrightness(0.95);
-                    setContrast(1.18);
-                    setSaturation(1.25);
-                  }}
-                >
-                  MJPEG fix
-                </button>
-                <button
-                  onClick={() => {
-                    setBrightness(1);
-                    setContrast(1);
-                    setSaturation(1);
-                  }}
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          )}
+          <ToolBtn
+            icon="fullscreen"
+            label={isFullscreen ? `Exit ${t.fullscreen.toLowerCase()}` : t.fullscreen}
+            onClick={toggleFullscreen}
+            disabled={!running}
+          />
         </div>
-
-        <span className="grow" />
-
-        <button onClick={takeScreenshot} disabled={!running}>
-          Screenshot
-        </button>
-        {!recording ? (
-          <button onClick={startRecording} disabled={!running}>
-            ● Record
-          </button>
-        ) : (
-          <button className="recording" onClick={stopRecording}>
-            ■ Stop recording
-          </button>
-        )}
-        <button onClick={toggleFullscreen} disabled={!running}>
-          {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-        </button>
-        {hasAccess && (
-          running ? (
-            <button onClick={stopStreams} title="Release camera and microphone">
-              Stop
-            </button>
-          ) : (
-            <button className="primary" onClick={start} title="Resume streaming">
-              Resume
-            </button>
-          )
-        )}
       </footer>
+
+      {/* Tooltip layer */}
+      {tooltip && (
+        <div
+          className="arc-tooltip"
+          style={{ left: tooltip.cx, top: tooltip.ty - 8 }}
+          role="tooltip"
+        >
+          {tooltip.label}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// =============================================================================
+// Subcomponents
+// =============================================================================
+
+function SettingRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="arc-setting-row">
+      <span className="arc-setting-label">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function QuickStep({
+  n,
+  title,
+  body,
+  icon,
+}: {
+  n: string;
+  title: string;
+  body: string;
+  icon: Parameters<typeof Icon>[0]['name'];
+}) {
+  return (
+    <div className="arc-qs">
+      <div className="arc-qs-icon">
+        <Icon name={icon} size={20} />
+      </div>
+      <div className="arc-qs-num">{n}</div>
+      <div className="arc-qs-title">{title}</div>
+      <div className="arc-qs-body">{body}</div>
+    </div>
+  );
+}
+
+function UpsellCard({ t, onDismiss }: { t: ReturnType<typeof useTranslation>; onDismiss: () => void }) {
+  return (
+    <div className="arc-upsell">
+      <div className="arc-upsell-img">
+        <img src={sc3CableUrl} alt="ShadowCast 3" />
+        <div className="arc-upsell-glow" />
+      </div>
+      <div className="arc-upsell-body">
+        <div className="arc-upsell-eyebrow">
+          <span className="arc-upsell-glyph">◆</span>
+          <span>{t.upsellEyebrow}</span>
+        </div>
+        <div className="arc-upsell-title">{t.upsellTitle}</div>
+        <div className="arc-upsell-sub">{t.upsellBody}</div>
+      </div>
+      <div className="arc-upsell-actions">
+        <a
+          className="arc-upsell-cta"
+          href={SHOPIFY_SHADOWCAST3_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span>{t.upsellCta}</span>
+          <Icon name="arrow" size={13} />
+        </a>
+      </div>
+      <button
+        className="arc-upsell-x"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        type="button"
+      >
+        <Icon name="close" size={13} />
+      </button>
+    </div>
+  );
+}
+
+function IdleHero({
+  t,
+  onStart,
+  showUpsell,
+  onDismissUpsell,
+  label,
+}: {
+  t: ReturnType<typeof useTranslation>;
+  onStart: () => void;
+  showUpsell: boolean;
+  onDismissUpsell: () => void;
+  label: string;
+}) {
+  return (
+    <div className="arc-idle">
+      <div className="arc-idle-inner">
+        <div className="arc-eyebrow arc-idle-eyebrow">{t.heroEyebrow}</div>
+        <h1 className="arc-idle-title">{t.heroTitle}</h1>
+        <p className="arc-idle-sub">{t.heroSub}</p>
+        <div className="arc-quickstart">
+          <QuickStep n="01" title={t.qs1Title} body={t.qs1Body} icon="plug" />
+          <QuickStep n="02" title={t.qs2Title} body={t.qs2Body} icon="shield" />
+          <QuickStep n="03" title={t.qs3Title} body={t.qs3Body} icon="play" />
+        </div>
+        {showUpsell && <UpsellCard t={t} onDismiss={onDismissUpsell} />}
+        <button className="arc-start" onClick={onStart} type="button">
+          <Icon name="play" size={16} />
+          <span>{label}</span>
+        </button>
+      </div>
     </div>
   );
 }
