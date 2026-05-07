@@ -63,7 +63,7 @@ const en: Translation = {
   heroEyebrow: 'Browser-based capture',
   heroTitle: 'Equip your journey.',
   heroSub:
-    "Plug in your capture card and play any console, anywhere — no install, no account, no nonsense.",
+    'Plug in your capture card and play any console, anywhere,\nno install, no account, no nonsense.',
   qs1Title: 'Plug in',
   qs1Body:
     "Connect your capture card to your console's HDMI out, then USB-C into this device.",

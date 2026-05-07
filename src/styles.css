@@ -396,6 +396,7 @@ input {
   max-width: 540px;
   margin: 0 auto 32px;
   text-wrap: pretty;
+  white-space: pre-line; /* honor \n line breaks in the i18n string */
 }
 
 .arc-quickstart {
