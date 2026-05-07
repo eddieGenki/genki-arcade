@@ -79,7 +79,7 @@ const en: Translation = {
   upsellTitle: 'Equip the ShadowCast 3.',
   upsellBody:
     "Lower latency, 4K passthrough, and the smallest capture card you'll ever own.",
-  upsellCta: 'Shop ShadowCast 3',
+  upsellCta: 'Equip',
 
   settings: 'Settings',
   videoDevice: 'Video device',
