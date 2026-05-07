@@ -753,6 +753,8 @@ input {
   left: 0;
   bottom: calc(100% + 12px);
   width: 340px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
   background: #1a1a1f;
   border: 1px solid var(--arc-border);
   border-radius: 8px;
@@ -763,6 +765,25 @@ input {
 .arc-settings-head {
   margin-bottom: 10px;
 }
+
+.arc-settings-section {
+  padding: 10px 0;
+  border-top: 1px solid var(--arc-border);
+}
+.arc-settings-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+.arc-settings-section-title {
+  font-family: 'Nekst', 'Onest', sans-serif;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--arc-fg);
+  margin-bottom: 10px;
+}
+
 .arc-settings-grid {
   display: grid;
   gap: 10px;
@@ -790,6 +811,43 @@ input {
 }
 .arc-setting-row select:hover {
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.arc-setting-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--arc-fg);
+}
+.arc-setting-toggle input {
+  accent-color: var(--accent);
+}
+
+.arc-swap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  margin: 6px 0;
+  background: var(--arc-panel-2);
+  color: var(--arc-fg);
+  border: 1px solid var(--arc-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Nekst', 'Onest', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.arc-swap:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* =========================================================================

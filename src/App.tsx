@@ -132,7 +132,7 @@ export default function App() {
   const pipVideoRef = useRef<HTMLVideoElement>(null);
   const pipStreamRef = useRef<MediaStream | null>(null);
   const [pipOn, setPipOn] = useState<boolean>(false);
-  const [pipDeviceId] = useState<string>(''); // default: built-in webcam
+  const [pipDeviceId, setPipDeviceId] = useState<string>('');
   const [pipMirrored, setPipMirrored] = useState<boolean>(true);
   const [pipPos, setPipPos] = useState<{ x: number; y: number }>({ x: -1, y: -1 });
   const [pipSize] = useState<{ w: number; h: number }>({ w: 200, h: 150 });
@@ -448,6 +448,27 @@ export default function App() {
     return () => {
       cancelled = true;
     };
+  }, [pipOn, pipDeviceId]);
+
+  // When PiP is toggled on, ensure pipDeviceId is bound to a *specific* device
+  // (not the empty "default" sentinel), and that it differs from the main
+  // input. Picking a concrete device makes Swap reliable.
+  useEffect(() => {
+    if (!pipOn) return;
+    if (pipDeviceId && pipDeviceId !== videoDeviceId) return;
+    const candidate = videoDevices.find((d) => d.deviceId && d.deviceId !== videoDeviceId);
+    if (candidate) setPipDeviceId(candidate.deviceId);
+  }, [pipOn, pipDeviceId, videoDeviceId, videoDevices]);
+
+  // Swap the device IDs for Input 1 (main) and Input 2 (PiP). The existing
+  // capture and PiP effects re-acquire each stream automatically when the
+  // deviceIds change, so no separate stream remap is needed.
+  const swapInputs = useCallback(() => {
+    if (!pipOn) return;
+    setVideoDeviceId((curMain) => {
+      setPipDeviceId(curMain);
+      return pipDeviceId;
+    });
   }, [pipOn, pipDeviceId]);
 
   const onPipMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -920,80 +941,19 @@ export default function App() {
                 <div className="arc-settings-head">
                   <span className="arc-eyebrow">{t.settings}</span>
                 </div>
-                <div className="arc-settings-grid">
-                  <SettingRow label={t.videoDevice}>
-                    <select
-                      value={videoDeviceId}
-                      onChange={(e) => setVideoDeviceId(e.target.value)}
-                    >
-                      <option value="">Default (browser picks)</option>
-                      {videoDevices
-                        .filter((d) => d.deviceId)
-                        .map((d) => (
-                          <option key={d.deviceId} value={d.deviceId}>
-                            {d.label}
-                          </option>
-                        ))}
-                    </select>
-                  </SettingRow>
-                  <SettingRow label={t.audioInput}>
-                    <select
-                      value={audioDeviceId}
-                      onChange={(e) => setAudioDeviceId(e.target.value)}
-                    >
-                      <option value="">Default (browser picks)</option>
-                      {audioDevices
-                        .filter((d) => d.deviceId)
-                        .map((d) => (
-                          <option key={d.deviceId} value={d.deviceId}>
-                            {d.label}
-                          </option>
-                        ))}
-                    </select>
-                  </SettingRow>
-                  <SettingRow label={t.audioOutput}>
-                    <select
-                      value={outputDeviceId}
-                      onChange={(e) => setOutputDeviceId(e.target.value)}
-                    >
-                      <option value="default">System default</option>
-                      {outputDevices.map((d) => (
-                        <option key={d.deviceId} value={d.deviceId}>
-                          {d.label}
-                        </option>
-                      ))}
-                    </select>
-                  </SettingRow>
-                  <SettingRow label={t.resolution}>
-                    <select
-                      value={resolution}
-                      onChange={(e) => setResolution(e.target.value)}
-                    >
-                      {RESOLUTION_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </SettingRow>
-                  <SettingRow label={t.frameRate}>
-                    <select value={fps} onChange={(e) => setFps(Number(e.target.value))}>
-                      {FPS_OPTIONS.map((f) => (
-                        <option key={f} value={f}>
-                          {f} fps
-                        </option>
-                      ))}
-                    </select>
-                  </SettingRow>
-                  {micOn && (
-                    <SettingRow label={t.micSource}>
+
+                {/* Input 1 — Main */}
+                <div className="arc-settings-section">
+                  <div className="arc-settings-section-title">Input 1 — Main</div>
+                  <div className="arc-settings-grid">
+                    <SettingRow label={t.videoDevice}>
                       <select
-                        value={micDeviceId}
-                        onChange={(e) => setMicDeviceId(e.target.value)}
+                        value={videoDeviceId}
+                        onChange={(e) => setVideoDeviceId(e.target.value)}
                       >
-                        <option value="">Default (built-in mic)</option>
-                        {audioDevices
-                          .filter((d) => d.deviceId && d.deviceId !== audioDeviceId)
+                        <option value="">Default (browser picks)</option>
+                        {videoDevices
+                          .filter((d) => d.deviceId && d.deviceId !== pipDeviceId)
                           .map((d) => (
                             <option key={d.deviceId} value={d.deviceId}>
                               {d.label}
@@ -1001,7 +961,122 @@ export default function App() {
                           ))}
                       </select>
                     </SettingRow>
-                  )}
+                    <SettingRow label={t.audioInput}>
+                      <select
+                        value={audioDeviceId}
+                        onChange={(e) => setAudioDeviceId(e.target.value)}
+                      >
+                        <option value="">Default (browser picks)</option>
+                        {audioDevices
+                          .filter((d) => d.deviceId)
+                          .map((d) => (
+                            <option key={d.deviceId} value={d.deviceId}>
+                              {d.label}
+                            </option>
+                          ))}
+                      </select>
+                    </SettingRow>
+                    <SettingRow label={t.resolution}>
+                      <select
+                        value={resolution}
+                        onChange={(e) => setResolution(e.target.value)}
+                      >
+                        {RESOLUTION_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </SettingRow>
+                    <SettingRow label={t.frameRate}>
+                      <select value={fps} onChange={(e) => setFps(Number(e.target.value))}>
+                        {FPS_OPTIONS.map((f) => (
+                          <option key={f} value={f}>
+                            {f} fps
+                          </option>
+                        ))}
+                      </select>
+                    </SettingRow>
+                  </div>
+                </div>
+
+                {/* Swap inputs (only meaningful when both inputs are active) */}
+                {pipOn && (
+                  <button className="arc-swap" onClick={swapInputs} type="button">
+                    <Icon name="swap" size={14} />
+                    <span>Swap inputs</span>
+                  </button>
+                )}
+
+                {/* Input 2 — PiP */}
+                {pipOn && (
+                  <div className="arc-settings-section">
+                    <div className="arc-settings-section-title">Input 2 — PiP</div>
+                    <div className="arc-settings-grid">
+                      <SettingRow label={t.videoDevice}>
+                        <select
+                          value={pipDeviceId}
+                          onChange={(e) => setPipDeviceId(e.target.value)}
+                        >
+                          <option value="">Default (built-in webcam)</option>
+                          {videoDevices
+                            .filter((d) => d.deviceId && d.deviceId !== videoDeviceId)
+                            .map((d) => (
+                              <option key={d.deviceId} value={d.deviceId}>
+                                {d.label}
+                              </option>
+                            ))}
+                        </select>
+                      </SettingRow>
+                      <SettingRow label={t.mirror}>
+                        <label className="arc-setting-toggle">
+                          <input
+                            type="checkbox"
+                            checked={pipMirrored}
+                            onChange={(e) => setPipMirrored(e.target.checked)}
+                          />
+                          <span>{pipMirrored ? 'On' : 'Off'}</span>
+                        </label>
+                      </SettingRow>
+                    </div>
+                  </div>
+                )}
+
+                {/* Output / global audio routing */}
+                <div className="arc-settings-section">
+                  <div className="arc-settings-section-title">Output</div>
+                  <div className="arc-settings-grid">
+                    <SettingRow label={t.audioOutput}>
+                      <select
+                        value={outputDeviceId}
+                        onChange={(e) => setOutputDeviceId(e.target.value)}
+                      >
+                        <option value="default">System default</option>
+                        {outputDevices.map((d) => (
+                          <option key={d.deviceId} value={d.deviceId}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </select>
+                    </SettingRow>
+                    {micOn && (
+                      <SettingRow label={t.micSource}>
+                        <select
+                          value={micDeviceId}
+                          onChange={(e) => setMicDeviceId(e.target.value)}
+                        >
+                          <option value="">Default (built-in mic)</option>
+                          {audioDevices
+                            .filter((d) => d.deviceId && d.deviceId !== audioDeviceId)
+                            .map((d) => (
+                              <option key={d.deviceId} value={d.deviceId}>
+                                {d.label}
+                              </option>
+                            ))}
+                        </select>
+                      </SettingRow>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
