@@ -608,18 +608,26 @@ input {
   overflow: hidden;
 }
 
+/* The ticker is a block of inline content (username, text, optional link).
+ * -webkit-line-clamp: 2 lets long messages wrap to a SECOND line within
+ * the slot rather than pushing the dock or overflowing the page. After 2
+ * lines, content is ellipsized. Username + link still render inline so
+ * they wrap with the text naturally. */
 .arc-ticker {
-  flex: 1 1 0;
+  width: 100%;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
   line-height: 1.4;
   color: rgba(245, 245, 245, 0.78);
   font-family: 'Suisse Int\'l', 'Inter', system-ui, sans-serif;
-  white-space: nowrap;
-  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
   opacity: 1;
   transition: opacity 0.4s ease;
 }
@@ -628,17 +636,15 @@ input {
 }
 
 .arc-ticker-user {
-  flex: 0 0 auto;
+  display: inline;
+  margin-right: 6px;
   color: var(--teal);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
 .arc-ticker-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: inline;
 }
 
 .arc-ticker-cursor {
@@ -656,7 +662,8 @@ input {
 }
 
 .arc-ticker-link {
-  flex: 0 0 auto;
+  display: inline;
+  margin-left: 6px;
   color: var(--coral);
   text-decoration: none;
   font-weight: 600;

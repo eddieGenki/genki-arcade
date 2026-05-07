@@ -79,7 +79,7 @@ const FPS_OPTIONS = [120, 60, 30];
 // validate against real ShadowCast 3 hardware.
 const MAX_FPS_BY_RESOLUTION: Record<string, number> = {
   '3840x2160': 60,
-  '2560x1440': 60,
+  '2560x1440': 120,
   '1920x1080': 120,
   '1280x720': 120,
 };
