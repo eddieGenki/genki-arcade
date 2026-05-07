@@ -937,7 +937,7 @@ export default function App() {
           </button>
         )}
         {running && (
-          <button className="arc-session" onClick={stopStreams} type="button">
+          <button className="arc-session is-end" onClick={stopStreams} type="button">
             <Icon name="close" size={14} />
             <span>{t.end}</span>
           </button>

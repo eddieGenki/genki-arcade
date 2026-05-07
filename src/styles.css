@@ -248,6 +248,17 @@ input {
   transform: translateY(1px);
 }
 
+/* End is a coral-outlined variant — destructive direction (stop), still
+ * branded, visually distinct from the teal Start/Resume. */
+.arc-session.is-end {
+  background: rgba(248, 100, 97, 0.1);
+  border-color: var(--coral);
+  color: var(--coral);
+}
+.arc-session.is-end:hover {
+  background: rgba(248, 100, 97, 0.18);
+}
+
 /* Topbar icon buttons (e.g., Fullscreen). Same shape as dock tools but
  * smaller and topbar-styled. */
 .arc-icon-btn {
@@ -560,8 +571,8 @@ input {
   font-weight: 600;
   font-size: 12px;
   background: transparent;
-  color: var(--coral);
-  border: 1px solid var(--coral);
+  color: var(--blue);
+  border: 1px solid var(--blue);
   border-radius: 0;
   cursor: pointer;
   letter-spacing: 0.04em;
@@ -570,7 +581,7 @@ input {
   transition: all 0.15s;
 }
 .arc-upsell-cta:hover {
-  background: var(--coral);
+  background: var(--blue);
   color: #fff;
 }
 .arc-upsell-x {
