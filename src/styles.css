@@ -591,20 +591,29 @@ input {
 }
 
 /* =========================================================================
- * News ticker — inline on the dock's button row, to the right of all icons
+ * News ticker — fills a slot to the right of the icon buttons, only
+ * rendered when the app is idle (so live gameplay isn't visually distracted)
  * ===================================================================== */
 
+/* The slot is always present in the DOM. flex-basis: 0 means it claims
+ * leftover horizontal space without ever pushing other items. When the
+ * ticker is hidden during live, the slot stays — Fullscreen stays at the
+ * far right instead of sliding left. */
+.arc-ticker-slot {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0 14px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
 .arc-ticker {
-  /* flex-basis: 0 means the ticker never demands its content size from the
-   * row — it only claims leftover space. Combined with overflow: hidden on
-   * its parent, this guarantees long messages never push other items off the
-   * row or wrap the dock vertically. */
   flex: 1 1 0;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: 14px;
   font-size: 12px;
   line-height: 1.4;
   color: rgba(245, 245, 245, 0.78);
@@ -738,6 +747,7 @@ input {
   height: 22px;
   margin: 0 8px;
   background: var(--arc-border);
+  flex-shrink: 0;
 }
 
 .arc-tool {
@@ -753,6 +763,7 @@ input {
   color: var(--arc-fg);
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 .arc-tool:hover:not(:disabled) {
   border-color: rgba(255, 255, 255, 0.2);

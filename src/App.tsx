@@ -215,25 +215,9 @@ export default function App() {
     return () => navigator.mediaDevices.removeEventListener('devicechange', handler);
   }, [refreshDevices]);
 
-  // Skip the manual Start button if permission was already granted.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!('permissions' in navigator)) return;
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const cam = await (navigator as any).permissions.query({ name: 'camera' });
-        if (!cancelled && cam.state === 'granted') {
-          requestInitialPermission();
-        }
-      } catch {
-        /* Firefox doesn't support 'camera' — fine, user clicks Start. */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [requestInitialPermission]);
+  // (Auto-start on page load was removed: even when permission is already
+  // granted, the user must click Start/Resume each time. This avoids
+  // grabbing camera/mic the moment the page loads.)
 
   // -------------------------------------------------------------------------
   // Stream lifecycle
@@ -1248,7 +1232,7 @@ export default function App() {
             onTooltipLeave={onIconLeave}
           />
 
-          <NewsTicker />
+          <div className="arc-ticker-slot">{!running && <NewsTicker />}</div>
 
           <ToolBtn
             icon="fullscreen"
