@@ -3,6 +3,7 @@ import logoUrl from './assets/genki-logo.png';
 import sc3CableUrl from './assets/sc3-cable.jpg';
 import { Icon } from './icons';
 import { pickLanguage, useTranslation } from './i18n';
+import { NEWS_ITEMS, shuffled } from './news';
 
 type DeviceInfo = { deviceId: string; label: string };
 
@@ -938,6 +939,8 @@ export default function App() {
             </div>
           </div>
         )}
+
+        <NewsTicker />
       </main>
 
       {/* DOCK */}
@@ -1201,6 +1204,43 @@ export default function App() {
 // =============================================================================
 // Subcomponents
 // =============================================================================
+
+function NewsTicker() {
+  // Random order per visit so visitors don't always see the same first item.
+  const items = useState(() => shuffled(NEWS_ITEMS))[0];
+  const [index, setIndex] = useState(0);
+  const [fading, setFading] = useState(false);
+  const ROTATION_MS = 11_000;
+  const FADE_MS = 350;
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setFading(true);
+      window.setTimeout(() => {
+        setIndex((i) => (i + 1) % items.length);
+        setFading(false);
+      }, FADE_MS);
+    }, ROTATION_MS);
+    return () => window.clearInterval(id);
+  }, [items.length]);
+
+  const item = items[index];
+  return (
+    <div className={`arc-ticker ${fading ? 'is-fading' : ''}`} aria-live="polite">
+      <span className="arc-ticker-text">{item.text}</span>
+      {item.link && (
+        <a
+          className="arc-ticker-link"
+          href={item.link.href}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {item.link.label} →
+        </a>
+      )}
+    </div>
+  );
+}
 
 function SettingRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (

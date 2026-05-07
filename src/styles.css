@@ -596,6 +596,51 @@ input {
 }
 
 /* =========================================================================
+ * News ticker — bottom-right rotating banner
+ * ===================================================================== */
+
+.arc-ticker {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  max-width: 420px;
+  padding: 9px 14px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  line-height: 1.45;
+  z-index: 4; /* below PiP (z-index 5) so PiP can sit over it if user wants */
+  opacity: 1;
+  transition: opacity 0.35s ease;
+  pointer-events: auto;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+}
+.arc-ticker.is-fading {
+  opacity: 0;
+}
+.arc-ticker-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.arc-ticker-link {
+  color: var(--coral);
+  text-decoration: none;
+  font-weight: 600;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.arc-ticker-link:hover {
+  text-decoration: underline;
+}
+
+/* =========================================================================
  * PiP
  * ===================================================================== */
 
