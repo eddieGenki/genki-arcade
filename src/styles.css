@@ -215,37 +215,26 @@ input {
   border: 1px solid rgba(39, 212, 179, 0.3);
 }
 
-/* Session button — Start / Resume / End all share this slot in the topbar.
- * .arc-session-go is the eye-catching coral state (Start, Resume).
- * .arc-session-end is the muted secondary state (End — destructive but
- * non-attention-grabbing so the user doesn't end by accident). */
+/* Session button — Start / Resume / End share one consistent treatment
+ * so the topbar doesn't visually shift between states. The icon (play vs.
+ * close) carries the meaning, not the color. */
 .arc-session {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   font-family: 'Nekst', 'Onest', sans-serif;
   font-weight: 600;
   letter-spacing: 0.04em;
-  transition: filter 0.12s, color 0.15s, border-color 0.15s, background 0.15s;
-  border: 1px solid transparent;
-}
-.arc-session-go {
-  background: var(--accent);
-  color: #fff;
-}
-.arc-session-go:hover {
-  filter: brightness(1.08);
-}
-.arc-session-end {
   background: transparent;
-  border-color: var(--arc-border);
+  border: 1px solid var(--arc-border);
   color: var(--arc-muted);
+  transition: color 0.15s, border-color 0.15s;
 }
-.arc-session-end:hover {
+.arc-session:hover {
   color: var(--arc-fg);
   border-color: rgba(255, 255, 255, 0.2);
 }
@@ -596,15 +585,16 @@ input {
 }
 
 /* =========================================================================
- * News ticker — sits in the dock, above the button row
+ * News ticker — inline on the dock's button row, to the right of all icons
  * ===================================================================== */
 
 .arc-ticker {
+  flex: 1 1 auto;
+  min-width: 0; /* allow shrink/truncate inside flex */
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--arc-border);
+  align-items: center;
+  gap: 8px;
+  margin-left: 14px; /* breathing room from PiP icon */
   font-size: 12px;
   line-height: 1.4;
   color: rgba(245, 245, 245, 0.78);

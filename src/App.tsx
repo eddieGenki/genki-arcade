@@ -845,19 +845,19 @@ export default function App() {
 
         {/* Session button: Start when no permission, Resume when paused, End when live. */}
         {!hasAccess && (
-          <button className="arc-session arc-session-go" onClick={requestInitialPermission} type="button">
+          <button className="arc-session" onClick={requestInitialPermission} type="button">
             <Icon name="play" size={14} />
             <span>{t.start}</span>
           </button>
         )}
         {hasAccess && !running && (
-          <button className="arc-session arc-session-go" onClick={start} type="button">
+          <button className="arc-session" onClick={start} type="button">
             <Icon name="play" size={14} />
             <span>{t.resume}</span>
           </button>
         )}
         {running && (
-          <button className="arc-session arc-session-end" onClick={stopStreams} type="button">
+          <button className="arc-session" onClick={stopStreams} type="button">
             <Icon name="close" size={14} />
             <span>{t.end}</span>
           </button>
@@ -940,7 +940,6 @@ export default function App() {
 
       {/* DOCK */}
       <footer className="arc-dock">
-        <NewsTicker />
         <div className="arc-tools">
           {/* Settings popover trigger */}
           <div className="arc-settings-wrap" ref={settingsRef}>
@@ -1180,6 +1179,8 @@ export default function App() {
             onTooltipEnter={onIconEnter}
             onTooltipLeave={onIconLeave}
           />
+
+          <NewsTicker />
         </div>
       </footer>
 
