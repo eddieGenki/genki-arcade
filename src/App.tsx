@@ -712,12 +712,6 @@ export default function App() {
     return `${m}:${ss}`;
   };
 
-  const settingsLabel = actualSettings
-    ? `${actualSettings.width ?? '?'}×${actualSettings.height ?? '?'} @ ${
-        actualSettings.frameRate ? Math.round(actualSettings.frameRate) : '?'
-      }fps`
-    : '—';
-
   const activeVideoLabel =
     videoDevices.find((d) => d.deviceId === videoDeviceId)?.label || '';
   const activeAudioLabel =
@@ -729,9 +723,21 @@ export default function App() {
     SHADOWCAST3_HINT.test(activeVideoLabel) || SHADOWCAST3_HINT.test(activeAudioLabel);
   const showUpsell = !upsellDismissed && (!labelsKnown || !isShadowcast3);
 
-  const resolutionLabel =
-    RESOLUTION_OPTIONS.find((o) => o.value === resolution)?.label || resolution;
-  const resolutionShort = resolutionLabel.split(' ')[0];
+  // Real (negotiated) resolution + fps from the live track. Fall back to the
+  // requested values until the track reports settings.
+  const actualW = actualSettings?.width ?? Number(resolution.split('x')[0]);
+  const actualH = actualSettings?.height ?? Number(resolution.split('x')[1]);
+  const actualFps = actualSettings?.frameRate
+    ? Math.round(actualSettings.frameRate)
+    : fps;
+  const resolutionShort = (() => {
+    if (actualW >= 3840 || actualH >= 2160) return '4K';
+    if (actualH >= 1440) return '1440p';
+    if (actualH >= 1080) return '1080p';
+    if (actualH >= 720) return '720p';
+    if (actualH >= 480) return '480p';
+    return `${actualW}×${actualH}`;
+  })();
 
   // -------------------------------------------------------------------------
   // Render
@@ -757,7 +763,6 @@ export default function App() {
             <span className="arc-pill arc-pill-live">
               <span className="arc-dot arc-dot-live" />
               {t.live}
-              <span className="arc-pill-meta">· {settingsLabel}</span>
             </span>
           )}
           {running && recording && (
@@ -839,7 +844,7 @@ export default function App() {
               <span className="arc-overlay-sep">·</span>
               {resolutionShort}
               <span className="arc-overlay-sep">·</span>
-              {fps} fps
+              {actualFps} fps
             </div>
           </div>
         )}
