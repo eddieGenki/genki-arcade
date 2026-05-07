@@ -73,6 +73,17 @@ const RESOLUTION_OPTIONS: Array<{ value: string; label: string }> = [
 
 const FPS_OPTIONS = [120, 60, 30];
 
+// Per-resolution upper bound on framerate that capture cards in 2026
+// commonly deliver. 4K@120 needs HDMI 2.1 capture (rare); 1440p@120 is also
+// edge-case. Conservative defaults — refine with per-device tables once we
+// validate against real ShadowCast 3 hardware.
+const MAX_FPS_BY_RESOLUTION: Record<string, number> = {
+  '3840x2160': 60,
+  '2560x1440': 60,
+  '1920x1080': 120,
+  '1280x720': 120,
+};
+
 export default function App() {
   const t = useTranslation(pickLanguage());
 
@@ -816,29 +827,39 @@ export default function App() {
     return w <= maxW && h <= maxH;
   };
   const supportsFps = (f: number) => {
-    if (!mainCapabilities) return true;
-    const maxFps = mainCapabilities.frameRate?.max ?? Infinity;
-    return f <= maxFps;
+    // Hard cap from the device itself (e.g., FaceTime camera reports 30 max)
+    if (mainCapabilities) {
+      const maxFps = mainCapabilities.frameRate?.max ?? Infinity;
+      if (f > maxFps) return false;
+    }
+    // Resolution-specific cap — capture cards top out per resolution bucket
+    // regardless of device max. e.g., 4K is generally 60fps max.
+    const resCap = MAX_FPS_BY_RESOLUTION[resolution] ?? Infinity;
+    if (f > resCap) return false;
+    return true;
   };
 
-  // If the user changes to a less-capable device (or had a high combo
-  // selected before any device was picked), gracefully drop to a supported
-  // combo instead of letting the browser silently negotiate down.
+  // If the user changes to a less-capable device, or bumps resolution into
+  // a tier that disallows the current fps (e.g., went from 1080p@120 to 4K),
+  // gracefully drop to a supported combo instead of letting the browser
+  // silently negotiate down or letting the dropdown show a stale value.
   useEffect(() => {
-    if (!mainCapabilities) return;
     if (!supportsResolution(reqW, reqH)) {
       const fallback = RESOLUTION_OPTIONS.find((o) => {
         const [w, h] = o.value.split('x').map(Number);
         return supportsResolution(w, h);
       });
-      if (fallback) setResolution(fallback.value);
+      if (fallback) {
+        setResolution(fallback.value);
+        return; // let the resolution change re-trigger this effect for fps
+      }
     }
     if (!supportsFps(fps)) {
       const fallback = FPS_OPTIONS.find((f) => supportsFps(f));
       if (fallback) setFps(fallback);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainCapabilities]);
+  }, [mainCapabilities, resolution]);
 
   // -------------------------------------------------------------------------
   // Render
