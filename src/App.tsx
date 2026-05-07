@@ -17,6 +17,16 @@ function isGenkiDevice(label: string | undefined): boolean {
   return SHADOWCAST_HINTS.some((h) => l.includes(h));
 }
 
+// Heuristic: known virtual camera apps. Auto-pick should avoid these as the
+// default Input 2 because they often "exist" without actively producing
+// frames (e.g., Camo when phone is unplugged). User can still pick them
+// explicitly via the Input 2 dropdown.
+const VIRTUAL_CAM_RE =
+  /\b(camo|reincubate|virtual cam(era)?|obs.*virtual|snap camera|nvidia broadcast|manycam|xsplit|ndi)\b/i;
+function isVirtualCam(label: string | undefined): boolean {
+  return !!label && VIRTUAL_CAM_RE.test(label);
+}
+
 function pickShadowcast(devices: DeviceInfo[]): DeviceInfo | undefined {
   return devices.find((d) =>
     SHADOWCAST_HINTS.some((h) => d.label.toLowerCase().includes(h)),
@@ -432,37 +442,65 @@ export default function App() {
       return;
     }
     (async () => {
+      const constraints: MediaStreamConstraints = {
+        video: pipDeviceId
+          ? {
+              deviceId: { exact: pipDeviceId },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            }
+          : { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      };
+      const acquire = async () => navigator.mediaDevices.getUserMedia(constraints);
+      let stream: MediaStream;
       try {
-        const constraints: MediaStreamConstraints = {
-          video: pipDeviceId
-            ? {
-                deviceId: { exact: pipDeviceId },
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-              }
-            : { width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        };
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
+        stream = await acquire();
+      } catch (e1) {
+        // Retry once after a short delay. Most failures during a Swap are a
+        // transient race where the formerly-main camera is still releasing
+        // while we try to grab it for PiP. A 500ms gap is plenty.
+        if (cancelled) return;
+        await new Promise((r) => setTimeout(r, 500));
+        if (cancelled) return;
+        try {
+          stream = await acquire();
+        } catch (e2) {
+          setError(`Webcam failed: ${(e2 as Error).message}`);
+          // Deliberately do NOT setPipOn(false) — keep the PiP toggle on so
+          // the user can pick a different device or retry. Killing the
+          // toggle makes Swap appear to "delete" PiP on transient failures.
           return;
         }
-        pipStreamRef.current?.getTracks().forEach((t) => t.stop());
-        pipStreamRef.current = stream;
-        if (pipVideoRef.current) {
-          pipVideoRef.current.srcObject = stream;
-          pipVideoRef.current.play().catch(() => {});
-        }
-      } catch (e) {
-        setError(`Webcam failed: ${(e as Error).message}`);
-        setPipOn(false);
+      }
+      if (cancelled) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      pipStreamRef.current?.getTracks().forEach((t) => t.stop());
+      pipStreamRef.current = stream;
+      if (pipVideoRef.current) {
+        pipVideoRef.current.srcObject = stream;
+        pipVideoRef.current.play().catch(() => {});
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [pipOn, pipDeviceId]);
+
+  // When PiP turns on, prefer a *physical* camera that isn't the main input.
+  // If none exists (only one camera, or only virtual alternatives) we leave
+  // pipDeviceId empty so the browser picks its default — Chrome multiplexes
+  // a single camera between two getUserMedia calls, so it still works.
+  useEffect(() => {
+    if (!pipOn) return;
+    if (pipDeviceId) return; // user (or earlier auto-pick) already chose
+    const physicalDifferent = videoDevices.find(
+      (d) => d.deviceId && d.deviceId !== videoDeviceId && !isVirtualCam(d.label),
+    );
+    if (physicalDifferent) setPipDeviceId(physicalDifferent.deviceId);
+  }, [pipOn, pipDeviceId, videoDeviceId, videoDevices]);
 
   // Swap the device IDs for Input 1 (main) and Input 2 (PiP). The existing
   // capture and PiP effects re-acquire each stream automatically when the
@@ -782,11 +820,17 @@ export default function App() {
     <div className="arc-app arc-theme-standard">
       {/* TOPBAR */}
       <header className="arc-topbar">
-        <div className="arc-brand">
+        <a
+          className="arc-brand"
+          href="https://www.genkithings.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Genki"
+        >
           <img className="arc-brand-logo" src={logoUrl} alt="Genki" />
           <div className="arc-brand-divider" aria-hidden />
           <span className="arc-brand-title">{t.arcade}</span>
-        </div>
+        </a>
 
         <div className="arc-status">
           {!running && (
@@ -831,18 +875,6 @@ export default function App() {
           </span>
         )}
 
-        {running && (
-          <button
-            className="arc-icon-btn"
-            onClick={toggleFullscreen}
-            type="button"
-            aria-label={isFullscreen ? `Exit ${t.fullscreen.toLowerCase()}` : t.fullscreen}
-            title={isFullscreen ? `Exit ${t.fullscreen.toLowerCase()}` : t.fullscreen}
-          >
-            <Icon name="fullscreen" size={14} />
-          </button>
-        )}
-
         {/* Session button: Start when no permission, Resume when paused, End when live. */}
         {!hasAccess && (
           <button className="arc-session" onClick={requestInitialPermission} type="button">
@@ -862,16 +894,6 @@ export default function App() {
             <span>{t.end}</span>
           </button>
         )}
-
-        <a
-          className="arc-shoplink"
-          href="https://www.genkithings.com"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <span>{t.shopLink}</span>
-          <Icon name="arrow" size={12} />
-        </a>
       </header>
 
       {/* STAGE */}
@@ -1181,6 +1203,15 @@ export default function App() {
           />
 
           <NewsTicker />
+
+          <ToolBtn
+            icon="fullscreen"
+            label={isFullscreen ? `Exit ${t.fullscreen.toLowerCase()}` : t.fullscreen}
+            onClick={toggleFullscreen}
+            disabled={!running}
+            onTooltipEnter={onIconEnter}
+            onTooltipLeave={onIconLeave}
+          />
         </div>
       </footer>
 

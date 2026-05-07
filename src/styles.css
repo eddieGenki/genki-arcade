@@ -83,6 +83,12 @@ input {
   display: flex;
   align-items: center;
   gap: 14px;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+.arc-brand:hover .arc-brand-title {
+  color: var(--arc-fg);
 }
 
 .arc-brand-logo {
