@@ -221,27 +221,28 @@ input {
   border: 1px solid rgba(39, 212, 179, 0.3);
 }
 
-/* Session button — Start / Resume / End all share one filled-coral
- * treatment so the topbar always has a clear primary action. Icon
- * (play vs. close) carries the directional meaning. */
+/* Session button — Start / Resume / End share a teal-outlined treatment
+ * (same idea as the dock's 'is-active' tool style, but using the brand
+ * teal for the upper-right). Less visually heavy than a solid fill, still
+ * clearly the primary action. Icon (play vs. close) distinguishes state. */
 .arc-session {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
+  padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   font-family: 'Nekst', 'Onest', sans-serif;
   font-weight: 600;
   letter-spacing: 0.04em;
-  background: var(--coral);
-  border: 1px solid transparent;
-  color: #fff;
-  transition: filter 0.15s, transform 0.1s;
+  background: rgba(39, 212, 179, 0.1);
+  border: 1px solid var(--teal);
+  color: var(--teal);
+  transition: background 0.15s, filter 0.15s, transform 0.1s;
 }
 .arc-session:hover {
-  filter: brightness(1.08);
+  background: rgba(39, 212, 179, 0.18);
 }
 .arc-session:active {
   transform: translateY(1px);
