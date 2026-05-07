@@ -111,6 +111,7 @@ export default function App() {
   const [running, setRunning] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [actualSettings, setActualSettings] = useState<MediaTrackSettings | null>(null);
+  const [mainCapabilities, setMainCapabilities] = useState<MediaTrackCapabilities | null>(null);
   const [hasAccess, setHasAccess] = useState<boolean>(false);
 
   // ---- Recording ----------------------------------------------------------
@@ -265,6 +266,7 @@ export default function App() {
     if (videoRef.current) videoRef.current.srcObject = null;
     setRunning(false);
     setActualSettings(null);
+    setMainCapabilities(null);
   }, []);
 
   const start = useCallback(async () => {
@@ -294,6 +296,12 @@ export default function App() {
 
       const vTrack = videoStream.getVideoTracks()[0];
       setActualSettings(vTrack.getSettings());
+      // Probe what this device can actually deliver. We use this to filter
+      // the resolution / fps dropdowns so users can't pick combos the
+      // device doesn't support.
+      setMainCapabilities(
+        typeof vTrack.getCapabilities === 'function' ? vTrack.getCapabilities() : null,
+      );
 
       // Audio graph: always-on so mic + game audio can mix into one stream.
       const ctx = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
@@ -813,6 +821,41 @@ export default function App() {
   const [reqW, reqH] = resolution.split('x').map(Number);
   const currentFormat = expectedFormat(reqW, reqH, fps);
 
+  // Helpers to filter dropdowns to what the *current* main device actually
+  // supports. Devices report `width.max`, `height.max`, `frameRate.max` via
+  // getCapabilities(). When capabilities are unknown (idle state, or browser
+  // doesn't implement the API), we fall back to showing all options.
+  const supportsResolution = (w: number, h: number) => {
+    if (!mainCapabilities) return true;
+    const maxW = mainCapabilities.width?.max ?? Infinity;
+    const maxH = mainCapabilities.height?.max ?? Infinity;
+    return w <= maxW && h <= maxH;
+  };
+  const supportsFps = (f: number) => {
+    if (!mainCapabilities) return true;
+    const maxFps = mainCapabilities.frameRate?.max ?? Infinity;
+    return f <= maxFps;
+  };
+
+  // If the user changes to a less-capable device (or had a high combo
+  // selected before any device was picked), gracefully drop to a supported
+  // combo instead of letting the browser silently negotiate down.
+  useEffect(() => {
+    if (!mainCapabilities) return;
+    if (!supportsResolution(reqW, reqH)) {
+      const fallback = RESOLUTION_OPTIONS.find((o) => {
+        const [w, h] = o.value.split('x').map(Number);
+        return supportsResolution(w, h);
+      });
+      if (fallback) setResolution(fallback.value);
+    }
+    if (!supportsFps(fps)) {
+      const fallback = FPS_OPTIONS.find((f) => supportsFps(f));
+      if (fallback) setFps(fallback);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainCapabilities]);
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -1018,7 +1061,10 @@ export default function App() {
                         value={resolution}
                         onChange={(e) => setResolution(e.target.value)}
                       >
-                        {RESOLUTION_OPTIONS.map((o) => {
+                        {RESOLUTION_OPTIONS.filter((o) => {
+                          const [w, h] = o.value.split('x').map(Number);
+                          return supportsResolution(w, h);
+                        }).map((o) => {
                           const [w, h] = o.value.split('x').map(Number);
                           const fmt = expectedFormat(w, h, fps);
                           return (
@@ -1032,7 +1078,7 @@ export default function App() {
                     </SettingRow>
                     <SettingRow label={t.frameRate}>
                       <select value={fps} onChange={(e) => setFps(Number(e.target.value))}>
-                        {FPS_OPTIONS.map((f) => {
+                        {FPS_OPTIONS.filter(supportsFps).map((f) => {
                           const fmt = expectedFormat(reqW, reqH, f);
                           return (
                             <option key={f} value={f}>
