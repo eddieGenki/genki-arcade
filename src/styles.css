@@ -82,7 +82,7 @@ input {
 .arc-brand {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   text-decoration: none;
   color: inherit;
   cursor: pointer;
