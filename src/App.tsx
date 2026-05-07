@@ -68,6 +68,12 @@ export default function App() {
   const [fps, setFps] = useState<number>(60);
   const [mirrored, setMirrored] = useState<boolean>(false);
   const [audioOn, setAudioOn] = useState<boolean>(true);
+  const [micOn, setMicOn] = useState<boolean>(false);
+  const [micDeviceId, setMicDeviceId] = useState<string>('');
+
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const micNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const mixDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
 
   const [running, setRunning] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -190,11 +196,16 @@ export default function App() {
 
     videoStreamRef.current?.getTracks().forEach((t) => t.stop());
     audioStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
     videoStreamRef.current = null;
     audioStreamRef.current = null;
+    micStreamRef.current = null;
 
     audioNodeRef.current?.disconnect();
     audioNodeRef.current = null;
+    micNodeRef.current?.disconnect();
+    micNodeRef.current = null;
+    mixDestRef.current = null;
     audioCtxRef.current?.close();
     audioCtxRef.current = null;
 
@@ -235,16 +246,20 @@ export default function App() {
       setActualSettings(vTrack.getSettings());
 
       // AUDIO ------------------------------------------------------------------
-      // Critical: disable all DSP. Default getUserMedia audio is voice-tuned
-      // (echo cancellation, AGC, noise suppression) which destroys game audio
-      // and adds latency.
+      // Always create the audio graph: it lets us mix game audio + mic into
+      // one stream for recording, even when passthrough is off.
+      const ctx = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
+      audioCtxRef.current = ctx;
+      const mixDest = ctx.createMediaStreamDestination();
+      mixDestRef.current = mixDest;
+
+      // Game audio: low-latency, all DSP disabled. Goes to BOTH speakers
+      // (monitoring) and the mix (recording).
       if (audioOn) {
         const audioConstraints: MediaTrackConstraints = {
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
-          // Chromium-specific kill switches for the WebRTC audio pipeline.
-          // Cast through any because they aren't in the standard typings.
           ...({
             googEchoCancellation: false,
             googAutoGainControl: false,
@@ -261,13 +276,12 @@ export default function App() {
         });
         audioStreamRef.current = audioStream;
 
-        const ctx = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
-        audioCtxRef.current = ctx;
         const src = ctx.createMediaStreamSource(audioStream);
         audioNodeRef.current = src;
-        src.connect(ctx.destination);
+        src.connect(ctx.destination); // monitor through speakers
+        src.connect(mixDest); // include in recording
 
-        // Route to chosen output device if supported.
+        // Route monitoring to chosen output device if supported.
         if (outputDeviceId && outputDeviceId !== 'default' && (ctx as any).setSinkId) {
           try {
             await (ctx as any).setSinkId(outputDeviceId);
@@ -293,6 +307,57 @@ export default function App() {
     // on every relevant state change already, and including it would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAccess, videoDeviceId, audioDeviceId, audioOn]);
+
+  // Mic capture (recorded into the mix, not monitored through speakers).
+  // Voice DSP is intentionally enabled — voice benefits from echo cancel,
+  // noise suppression, AGC. Game audio still bypasses all of that.
+  useEffect(() => {
+    let cancelled = false;
+
+    const teardown = () => {
+      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
+      micNodeRef.current?.disconnect();
+      micNodeRef.current = null;
+    };
+
+    if (!micOn || !running || !audioCtxRef.current || !mixDestRef.current) {
+      teardown();
+      return;
+    }
+
+    (async () => {
+      try {
+        const constraints: MediaTrackConstraints = {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        };
+        if (micDeviceId) constraints.deviceId = { exact: micDeviceId };
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: constraints,
+          video: false,
+        });
+        if (cancelled || !audioCtxRef.current || !mixDestRef.current) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        teardown();
+        micStreamRef.current = stream;
+        const src = audioCtxRef.current.createMediaStreamSource(stream);
+        micNodeRef.current = src;
+        src.connect(mixDestRef.current); // recording only — never connected to ctx.destination
+      } catch (e) {
+        setError(`Mic failed: ${(e as Error).message}`);
+        setMicOn(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [micOn, micDeviceId, running]);
 
   // Re-apply video constraints on the fly (no full restart) when the user
   // changes resolution or fps while running.
@@ -453,7 +518,9 @@ export default function App() {
 
     const canvasStream = (canvas as any).captureStream(fps) as MediaStream;
     const tracks: MediaStreamTrack[] = [...canvasStream.getVideoTracks()];
-    if (audioStreamRef.current) tracks.push(...audioStreamRef.current.getAudioTracks());
+    // Pull audio from the mix destination so game audio + mic are combined.
+    const mixStream = mixDestRef.current?.stream;
+    if (mixStream) tracks.push(...mixStream.getAudioTracks());
     const combined = new MediaStream(tracks);
 
     const mimeType = pickMimeType();
@@ -797,6 +864,32 @@ export default function App() {
           <input type="checkbox" checked={audioOn} onChange={(e) => setAudioOn(e.target.checked)} />
           Audio passthrough
         </label>
+
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={micOn}
+            onChange={(e) => setMicOn(e.target.checked)}
+            disabled={!running}
+          />
+          Record mic
+        </label>
+
+        {micOn && (
+          <label className="field">
+            Mic source
+            <select value={micDeviceId} onChange={(e) => setMicDeviceId(e.target.value)}>
+              <option value="">Default (built-in mic)</option>
+              {audioDevices
+                .filter((d) => d.deviceId && d.deviceId !== audioDeviceId)
+                .map((d) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label}
+                  </option>
+                ))}
+            </select>
+          </label>
+        )}
 
         <label className="toggle">
           <input
