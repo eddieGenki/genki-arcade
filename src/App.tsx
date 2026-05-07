@@ -1028,16 +1028,6 @@ export default function App() {
                             ))}
                         </select>
                       </SettingRow>
-                      <SettingRow label={t.mirror}>
-                        <label className="arc-setting-toggle">
-                          <input
-                            type="checkbox"
-                            checked={pipMirrored}
-                            onChange={(e) => setPipMirrored(e.target.checked)}
-                          />
-                          <span>{pipMirrored ? 'On' : 'Off'}</span>
-                        </label>
-                      </SettingRow>
                     </div>
                   </div>
                 )}
