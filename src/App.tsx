@@ -734,35 +734,6 @@ export default function App() {
   const resolutionShort = resolutionLabel.split(' ')[0];
 
   // -------------------------------------------------------------------------
-  // Reusable subcomponents
-  // -------------------------------------------------------------------------
-  type ToolBtnProps = {
-    icon: Parameters<typeof Icon>[0]['name'];
-    label: string;
-    active?: boolean;
-    onClick?: () => void;
-    disabled?: boolean;
-  };
-  const ToolBtn = ({ icon, label, active, onClick, disabled }: ToolBtnProps) => (
-    <button
-      className={`arc-tool ${active ? 'is-active' : ''}`}
-      onMouseEnter={onIconEnter(label)}
-      onMouseLeave={onIconLeave}
-      onFocus={onIconEnter(label)}
-      onBlur={onIconLeave}
-      onClick={() => {
-        onIconLeave();
-        onClick?.();
-      }}
-      disabled={disabled}
-      aria-label={label}
-      type="button"
-    >
-      <Icon name={icon} size={18} />
-    </button>
-  );
-
-  // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
   return (
@@ -929,6 +900,8 @@ export default function App() {
               label={t.settings}
               active={settingsOpen}
               onClick={() => setSettingsOpen((o) => !o)}
+              onTooltipEnter={onIconEnter}
+              onTooltipLeave={onIconLeave}
             />
             {settingsOpen && (
               <div className="arc-settings-popover">
@@ -1030,6 +1003,8 @@ export default function App() {
             label={t.audioPassthrough}
             active={audioOn}
             onClick={() => setAudioOn((v) => !v)}
+            onTooltipEnter={onIconEnter}
+            onTooltipLeave={onIconLeave}
           />
           <ToolBtn
             icon="mic"
@@ -1037,6 +1012,8 @@ export default function App() {
             active={micOn}
             onClick={() => setMicOn((v) => !v)}
             disabled={!running}
+            onTooltipEnter={onIconEnter}
+            onTooltipLeave={onIconLeave}
           />
           <ToolBtn
             icon="webcam"
@@ -1044,12 +1021,16 @@ export default function App() {
             active={pipOn}
             onClick={() => setPipOn((v) => !v)}
             disabled={!running}
+            onTooltipEnter={onIconEnter}
+            onTooltipLeave={onIconLeave}
           />
           <ToolBtn
             icon="mirror"
             label={t.mirror}
             active={mirrored}
             onClick={() => setMirrored((v) => !v)}
+            onTooltipEnter={onIconEnter}
+            onTooltipLeave={onIconLeave}
           />
 
           <div className="arc-tools-divider" />
@@ -1060,6 +1041,8 @@ export default function App() {
             label={t.snapshot}
             onClick={takeScreenshot}
             disabled={!running}
+            onTooltipEnter={onIconEnter}
+            onTooltipLeave={onIconLeave}
           />
           <button
             className={`arc-rec-btn ${recording ? 'is-recording' : ''}`}
@@ -1084,6 +1067,8 @@ export default function App() {
             label={isFullscreen ? `Exit ${t.fullscreen.toLowerCase()}` : t.fullscreen}
             onClick={toggleFullscreen}
             disabled={!running}
+            onTooltipEnter={onIconEnter}
+            onTooltipLeave={onIconLeave}
           />
         </div>
       </footer>
@@ -1112,6 +1097,50 @@ function SettingRow({ label, children }: { label: string; children: React.ReactN
       <span className="arc-setting-label">{label}</span>
       {children}
     </label>
+  );
+}
+
+type ToolBtnProps = {
+  icon: Parameters<typeof Icon>[0]['name'];
+  label: string;
+  active?: boolean;
+  onClick?: () => void;
+  onTooltipEnter?: (label: string) => (e: React.MouseEvent | React.FocusEvent) => void;
+  onTooltipLeave?: () => void;
+  disabled?: boolean;
+};
+
+// Top-level so React doesn't re-create the component type on every parent
+// render. Defining it inside <App> caused the dock buttons to be unmounted
+// and remounted on every state change, which could drop click events under
+// certain hover/click race conditions.
+function ToolBtn({
+  icon,
+  label,
+  active,
+  onClick,
+  onTooltipEnter,
+  onTooltipLeave,
+  disabled,
+}: ToolBtnProps) {
+  const enterHandler = onTooltipEnter ? onTooltipEnter(label) : undefined;
+  return (
+    <button
+      className={`arc-tool ${active ? 'is-active' : ''}`}
+      onMouseEnter={enterHandler}
+      onMouseLeave={onTooltipLeave}
+      onFocus={enterHandler}
+      onBlur={onTooltipLeave}
+      onClick={() => {
+        onTooltipLeave?.();
+        onClick?.();
+      }}
+      disabled={disabled}
+      aria-label={label}
+      type="button"
+    >
+      <Icon name={icon} size={18} />
+    </button>
   );
 }
 
