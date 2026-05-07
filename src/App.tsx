@@ -1069,29 +1069,20 @@ export default function App() {
                         {RESOLUTION_OPTIONS.filter((o) => {
                           const [w, h] = o.value.split('x').map(Number);
                           return supportsResolution(w, h);
-                        }).map((o) => {
-                          const [w, h] = o.value.split('x').map(Number);
-                          const fmt = expectedFormat(w, h, fps);
-                          return (
-                            <option key={o.value} value={o.value}>
-                              {o.label}
-                              {fmt === 'mjpg' ? ' — MJPG' : ''}
-                            </option>
-                          );
-                        })}
+                        }).map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
                       </select>
                     </SettingRow>
                     <SettingRow label={t.frameRate}>
                       <select value={fps} onChange={(e) => setFps(Number(e.target.value))}>
-                        {FPS_OPTIONS.filter(supportsFps).map((f) => {
-                          const fmt = expectedFormat(reqW, reqH, f);
-                          return (
-                            <option key={f} value={f}>
-                              {f} fps
-                              {fmt === 'mjpg' ? ' — MJPG' : ''}
-                            </option>
-                          );
-                        })}
+                        {FPS_OPTIONS.filter(supportsFps).map((f) => (
+                          <option key={f} value={f}>
+                            {f} fps
+                          </option>
+                        ))}
                       </select>
                     </SettingRow>
                     <div
