@@ -147,9 +147,13 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const stageRef = useRef<HTMLElement>(null);
   const settingsRef = useRef<HTMLDivElement>(null);
+  // Hidden HTMLAudioElement that plays the game audio directly. Bypasses
+  // Web Audio for the monitoring path, saving ~10 ms vs. routing through
+  // AudioContext.destination. Web Audio is still used for the recording
+  // mix (game audio + mic), but that path doesn't gate live latency.
+  const audioMonitorRef = useRef<HTMLAudioElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const monitorGainRef = useRef<GainNode | null>(null);
   const videoStreamRef = useRef<MediaStream | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
 
@@ -344,8 +348,6 @@ export default function App() {
 
     audioNodeRef.current?.disconnect();
     audioNodeRef.current = null;
-    monitorGainRef.current?.disconnect();
-    monitorGainRef.current = null;
     micNodeRef.current?.disconnect();
     micNodeRef.current = null;
     mixDestRef.current = null;
@@ -353,6 +355,10 @@ export default function App() {
     audioCtxRef.current = null;
 
     if (videoRef.current) videoRef.current.srcObject = null;
+    if (audioMonitorRef.current) {
+      audioMonitorRef.current.pause();
+      audioMonitorRef.current.srcObject = null;
+    }
     setRunning(false);
     setActualSettings(null);
     setMainCapabilities(null);
@@ -426,27 +432,39 @@ export default function App() {
         });
         audioStreamRef.current = audioStream;
 
+        // Monitoring path: HTMLAudioElement plays the audio track directly
+        // through the browser's native audio pipeline. ~5-15 ms output buffer
+        // vs. Web Audio's 10-25 ms — saves ~10 ms of perceived audio lag.
+        // Mic isn't routed to monitoring (recording-only), so this is safe
+        // whether mic is on or off.
+        const audioEl = audioMonitorRef.current;
+        if (audioEl) {
+          audioEl.srcObject = audioStream;
+          audioEl.volume = volumeRef.current;
+          if (
+            outputDeviceId &&
+            outputDeviceId !== 'default' &&
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            typeof (audioEl as any).setSinkId === 'function'
+          ) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (audioEl as any).setSinkId(outputDeviceId);
+            } catch (e) {
+              console.warn('audio setSinkId failed:', e);
+            }
+          }
+          audioEl.play().catch(() => {});
+        }
+
+        // Recording path: still goes through Web Audio so we can mix game
+        // audio with the mic stream into one track for MediaRecorder. The
+        // recording stream is *not* gain-attenuated — the volume slider
+        // only affects monitoring (the <audio> element), so a quiet
+        // headphone setting doesn't tank recording levels.
         const src = ctx.createMediaStreamSource(audioStream);
         audioNodeRef.current = src;
-        // Monitor path goes through a gain node so the volume slider only
-        // affects speaker output. Recording mix taps the source directly so
-        // the recorded file stays at full level regardless of monitor volume.
-        const monitorGain = ctx.createGain();
-        monitorGain.gain.value = volumeRef.current;
-        monitorGainRef.current = monitorGain;
-        src.connect(monitorGain);
-        monitorGain.connect(ctx.destination);
         src.connect(mixDest);
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if (outputDeviceId && outputDeviceId !== 'default' && (ctx as any).setSinkId) {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (ctx as any).setSinkId(outputDeviceId);
-          } catch (e) {
-            console.warn('setSinkId failed:', e);
-          }
-        }
       }
 
       setRunning(true);
@@ -511,18 +529,15 @@ export default function App() {
     };
   }, [micOn, micDeviceId, running]);
 
-  // Live volume control — slide updates the gain node without restarting
-  // the audio graph. Smooth ramp avoids a click on rapid drags. The ref
-  // mirror lets `start()` initialize the gain at the current slider value
-  // even though `volume` isn't in its dep list (avoiding restarts on drag).
+  // Live volume control — drives HTMLAudioElement.volume directly. The ref
+  // mirror lets `start()` initialize the audio element at the current slider
+  // value even though `volume` isn't in its dep list (avoiding restarts on
+  // drag).
   const volumeRef = useRef(volume);
   useEffect(() => {
     volumeRef.current = volume;
-    const gain = monitorGainRef.current;
-    const ctx = audioCtxRef.current;
-    if (!gain || !ctx) return;
-    gain.gain.cancelScheduledValues(ctx.currentTime);
-    gain.gain.setTargetAtTime(volume, ctx.currentTime, 0.015);
+    const audioEl = audioMonitorRef.current;
+    if (audioEl) audioEl.volume = volume;
   }, [volume]);
 
   // Re-apply video constraints on the fly when resolution / fps change.
@@ -542,6 +557,21 @@ export default function App() {
   }, [resolution, fps, running]);
 
   useEffect(() => () => stopStreams(), [stopStreams]);
+
+  // Live re-route audio output when the user picks a different sink mid-stream
+  // (previously this only applied at start time). HTMLAudioElement.setSinkId
+  // is supported across modern Chrome / Edge / Firefox 116+ / Safari 17+.
+  useEffect(() => {
+    if (!running) return;
+    const audioEl = audioMonitorRef.current;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!audioEl || typeof (audioEl as any).setSinkId !== 'function') return;
+    const target = outputDeviceId === 'default' ? '' : outputDeviceId;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (audioEl as any).setSinkId(target).catch((e: unknown) => {
+      console.warn('audio setSinkId failed:', e);
+    });
+  }, [outputDeviceId, running]);
 
   // Sync capture settings ref for recording loop.
   useEffect(() => {
@@ -1599,6 +1629,11 @@ export default function App() {
           />
         </div>
       </footer>
+
+      {/* Hidden monitoring sink — game audio plays here directly for the
+          lowest browser-side latency. Web Audio is reserved for the
+          recording mix, where latency doesn't matter. */}
+      <audio ref={audioMonitorRef} autoPlay playsInline style={{ display: 'none' }} />
 
       {/* Tooltip layer */}
       {tooltip && (
