@@ -60,7 +60,7 @@ const en: Translation = {
   live: 'Live',
   rec: 'REC',
 
-  heroEyebrow: 'Every screen, a playground.',
+  heroEyebrow: 'Turn every screen into a playground.',
   heroTitle: 'Equip your journey.',
   heroSub:
     'Plug in your capture card and play any console, anywhere,\nno install, no account, no nonsense.',
@@ -70,8 +70,7 @@ const en: Translation = {
   qs2Title: 'Press start',
   qs2Body: 'Click the Start button in the upper-right.',
   qs3Title: 'Allow access',
-  qs3Body:
-    "Grant camera and microphone permission when prompted. We'll route audio passthrough automatically.",
+  qs3Body: 'Grant camera and microphone permission when prompted.',
   start: 'Start',
   resume: 'Resume',
 
@@ -88,7 +87,7 @@ const en: Translation = {
   resolution: 'Resolution',
   frameRate: 'Frame rate',
   mirror: 'Mirror',
-  audioPassthrough: 'Audio passthrough — hear game audio through speakers',
+  audioPassthrough: 'Audio passthrough',
   recordMic: 'Record mic',
   webcamPip: 'Webcam picture-in-picture',
   micSource: 'Mic source',
