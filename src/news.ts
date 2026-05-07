@@ -38,7 +38,7 @@ export const NEWS_ITEMS: NewsItem[] = [
   },
   {
     id: 'shadowcast-cheer',
-    text: 'ShadowCast 3 fits in a pocket and pumps 4K over a single USB-C. Genki engineers, what is wrong with you (complimentary).',
+    text: 'ShadowCast 3 pumps 4K over a single USB-C and still fits in your pocket. tiny powerhouse.',
   },
 
   // ── Gaming culture — short observations ──────────────────────────────

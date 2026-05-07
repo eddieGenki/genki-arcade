@@ -595,12 +595,16 @@ input {
  * ===================================================================== */
 
 .arc-ticker {
-  flex: 1 1 auto;
-  min-width: 0; /* allow shrink/truncate inside flex */
+  /* flex-basis: 0 means the ticker never demands its content size from the
+   * row — it only claims leftover space. Combined with overflow: hidden on
+   * its parent, this guarantees long messages never push other items off the
+   * row or wrap the dock vertically. */
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: 14px; /* breathing room from PiP icon */
+  margin-left: 14px;
   font-size: 12px;
   line-height: 1.4;
   color: rgba(245, 245, 245, 0.78);
@@ -726,7 +730,8 @@ input {
   align-items: center;
   gap: 6px;
   padding: 14px 20px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* keep on one row; ticker shrinks to fit, doesn't push others to a new line */
+  overflow: hidden;
 }
 .arc-tools-divider {
   width: 1px;
