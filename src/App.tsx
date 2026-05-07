@@ -464,26 +464,23 @@ export default function App() {
     };
   }, [pipOn, pipDeviceId]);
 
-  // When PiP is toggled on, ensure pipDeviceId is bound to a *specific* device
-  // (not the empty "default" sentinel), and that it differs from the main
-  // input. Picking a concrete device makes Swap reliable.
-  useEffect(() => {
-    if (!pipOn) return;
-    if (pipDeviceId && pipDeviceId !== videoDeviceId) return;
-    const candidate = videoDevices.find((d) => d.deviceId && d.deviceId !== videoDeviceId);
-    if (candidate) setPipDeviceId(candidate.deviceId);
-  }, [pipOn, pipDeviceId, videoDeviceId, videoDevices]);
-
   // Swap the device IDs for Input 1 (main) and Input 2 (PiP). The existing
   // capture and PiP effects re-acquire each stream automatically when the
   // deviceIds change, so no separate stream remap is needed.
+  //
+  // pipDeviceId may be empty (browser-default), so we resolve the *actual*
+  // device the PiP track is bound to at swap time — that way Swap works even
+  // if the user never explicitly picked an Input 2 device.
   const swapInputs = useCallback(() => {
     if (!pipOn) return;
-    setVideoDeviceId((curMain) => {
-      setPipDeviceId(curMain);
-      return pipDeviceId;
-    });
-  }, [pipOn, pipDeviceId]);
+    const pipActualId =
+      pipStreamRef.current?.getVideoTracks()[0]?.getSettings().deviceId;
+    const targetForMain = pipDeviceId || pipActualId;
+    if (!targetForMain) return;
+    const targetForPip = videoDeviceId;
+    setVideoDeviceId(targetForMain);
+    setPipDeviceId(targetForPip);
+  }, [pipOn, pipDeviceId, videoDeviceId]);
 
   const onPipMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -973,7 +970,7 @@ export default function App() {
                       >
                         <option value="">Default (browser picks)</option>
                         {videoDevices
-                          .filter((d) => d.deviceId && d.deviceId !== pipDeviceId)
+                          .filter((d) => d.deviceId)
                           .map((d) => (
                             <option key={d.deviceId} value={d.deviceId}>
                               {d.label}
@@ -1070,7 +1067,7 @@ export default function App() {
                         >
                           <option value="">Default (built-in webcam)</option>
                           {videoDevices
-                            .filter((d) => d.deviceId && d.deviceId !== videoDeviceId)
+                            .filter((d) => d.deviceId)
                             .map((d) => (
                               <option key={d.deviceId} value={d.deviceId}>
                                 {d.label}
