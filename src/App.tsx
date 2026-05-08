@@ -1247,22 +1247,16 @@ export default function App() {
   // (and what their recordings/screenshots will be captured at).
   const upscaledShort = upscaleOn ? shortRes(actualW * 2, actualH * 2) : null;
 
-  // Format detection. Prefer the live VideoFrame probe (authoritative), else
-  // fall back to bandwidth prediction. The probe is async and may take a
-  // moment to land — until then the prediction is shown.
+  // (No reliable source-format detection available — see the format row
+  // tooltip for the architectural reason. We just expose `decodedFormat`
+  // for transparency; downstream consumers don't gate on it.)
   const [reqW, reqH] = resolution.split('x').map(Number);
-  const probedFormat = formatFromDecoded(decodedFormat);
-  const currentFormat: 'uncompressed' | 'mjpg' =
-    probedFormat ?? expectedFormat(actualW, actualH, actualFps);
-  const formatIsProbed = probedFormat !== null;
 
-  // ChromaCast™ — gated to ShadowCast 3 specifically AND only meaningful in
-  // MJPG mode (the filter compensates for MJPG's color penalty; on
-  // uncompressed pixels it just oversaturates). Preference is preserved
-  // across device swaps and format changes; the filter just doesn't apply
-  // unless both conditions are met.
-  const chromaCastActive =
-    chromaCastEnabled && isShadowcast3 && currentFormat === 'mjpg';
+  // ChromaCast™ — SC3-locked, otherwise toggle-respecting. We used to gate
+  // application on "format is MJPG," but browsers don't reliably expose
+  // source format on macOS, so the gate was hiding the filter even when
+  // users wanted it. If you toggle it on for an SC3, it applies.
+  const chromaCastActive = chromaCastEnabled && isShadowcast3;
   // Composed filter chain — image adjustments (currently UI-hidden but the
   // state machine still feeds them in) plus ChromaCast when active.
   const composedFilter =
@@ -1583,26 +1577,14 @@ export default function App() {
                       </select>
                     </SettingRow>
                     <div
-                      className={`arc-format-row arc-format-${currentFormat}`}
-                      title={
-                        formatIsProbed
-                          ? `Detected from the live video frames: decoded format ${decodedFormat}. ${
-                              currentFormat === 'mjpg'
-                                ? 'I420-class decode strongly implies an MJPG source — the device compressed the feed before sending it.'
-                                : 'NV12-class decode means the device sent raw YUY2 pixels with full color fidelity.'
-                            }`
-                          : currentFormat === 'mjpg'
-                            ? 'Predicted (live probe unavailable). This combo exceeds USB 3.0 uncompressed bandwidth, so the capture card likely encodes to MJPG.'
-                            : 'Predicted (live probe unavailable). Bandwidth fits USB 3.0 uncompressed, so the capture card likely sends raw YUY2/NV12.'
-                      }
+                      className="arc-format-row arc-format-pipeline"
+                      title={`Browsers expose video as decoded VideoFrames, not the source format the capture card sent. macOS Chrome typically normalizes everything to NV12 (or I420 from MJPG sources) before this app sees it — so the source format (YUY2 vs MJPG) isn't actually visible to us. Native apps like OBS bypass this with AVFoundation; that's why their picture looks crisper. For the closest match in browser, enable Enhance (4K upscale + sharpening) and ChromaCast.`}
                     >
-                      <span className="arc-format-mark">
-                        {currentFormat === 'mjpg' ? '▲' : '●'}
-                      </span>
+                      <span className="arc-format-mark">●</span>
                       <span>
-                        {currentFormat === 'mjpg' ? 'Compressed (MJPG)' : 'Uncompressed'}
-                        {!formatIsProbed && (
-                          <span className="arc-format-sub"> — predicted</span>
+                        Browser pipeline
+                        {decodedFormat && (
+                          <span className="arc-format-sub"> · decoded as {decodedFormat}</span>
                         )}
                       </span>
                     </div>
