@@ -227,6 +227,7 @@ export default function App() {
   // ---- Other UI -----------------------------------------------------------
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [faqOpen, setFaqOpen] = useState<boolean>(false);
   const [tooltip, setTooltip] = useState<{ label: string; cx: number; ty: number } | null>(null);
 
   // ShadowCast 3 upsell — dismiss persists in localStorage.
@@ -1208,7 +1209,18 @@ export default function App() {
         {!running && (
           <IdleHero t={t} showUpsell={showUpsell} onDismissUpsell={dismissUpsell} />
         )}
-        {!running && <BuildStamp />}
+        {!running && (
+          <div className="arc-corner-actions">
+            <button
+              className="arc-faq-trigger"
+              onClick={() => setFaqOpen(true)}
+              type="button"
+            >
+              Tips & FAQ
+            </button>
+            <BuildStamp />
+          </div>
+        )}
 
         <video
           ref={videoRef}
@@ -1391,34 +1403,34 @@ export default function App() {
                       </span>
                     </div>
 
-                    {/* ChromaCast™ — only shown when the current combo is
-                        actually MJPG (the filter is a no-op on uncompressed
-                        and would only oversaturate). Selectable only with a
-                        ShadowCast 3 active; otherwise the row is dimmed and
-                        the checkbox disabled, so non-Genki users can still
-                        see the feature exists. Preference is persisted. */}
-                    {currentFormat === 'mjpg' && (
-                      <label
-                        className={`arc-chromacast-row ${
-                          !isShadowcast3 ? 'is-locked' : ''
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={chromaCastEnabled}
-                          onChange={(e) => setChromaCastEnabled(e.target.checked)}
-                          disabled={!isShadowcast3}
-                        />
-                        <span className="arc-chromacast-text">
-                          <strong>ChromaCast™</strong>
-                          <span className="arc-chromacast-sub">
-                            {isShadowcast3
-                              ? 'Restore vivid colors in MJPG capture'
-                              : 'Restore vivid colors in MJPG capture — ShadowCast 3 required'}
-                          </span>
+                    {/* ChromaCast™ — Genki MJPG color correction. Always
+                        visible so users can find and configure it
+                        regardless of the current resolution/fps. Only
+                        selectable when a ShadowCast 3 is the active main
+                        device; otherwise the row is dimmed and the
+                        checkbox HTML-disabled. The filter itself is gated
+                        on MJPG mode in chromaCastActive, so the toggle is
+                        essentially "I want this on whenever it can apply." */}
+                    <label
+                      className={`arc-chromacast-row ${
+                        !isShadowcast3 ? 'is-locked' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={chromaCastEnabled}
+                        onChange={(e) => setChromaCastEnabled(e.target.checked)}
+                        disabled={!isShadowcast3}
+                      />
+                      <span className="arc-chromacast-text">
+                        <strong>ChromaCast™</strong>
+                        <span className="arc-chromacast-sub">
+                          {isShadowcast3
+                            ? 'Restore vivid colors in compressed (MJPG) capture'
+                            : 'Restore vivid colors in compressed (MJPG) capture — ShadowCast 3 required'}
                         </span>
-                      </label>
-                    )}
+                      </span>
+                    </label>
                   </div>
                 </div>
 
@@ -1636,6 +1648,8 @@ export default function App() {
           recording mix, where latency doesn't matter. */}
       <audio ref={audioMonitorRef} autoPlay playsInline style={{ display: 'none' }} />
 
+      {faqOpen && <FaqModal onClose={() => setFaqOpen(false)} />}
+
       {/* Tooltip layer */}
       {tooltip && (
         <div
@@ -1653,6 +1667,175 @@ export default function App() {
 // =============================================================================
 // Subcomponents
 // =============================================================================
+
+// Tips & FAQ — accessible from the idle screen via "Help & tips" link.
+// Collapsible sections via native <details>. Content kept in one place so
+// it's easy to update.
+const FAQ_SECTIONS: { title: string; body: React.ReactNode }[] = [
+  {
+    title: 'Image looks blurry or has a depth-of-field effect',
+    body: (
+      <>
+        <p>
+          On <strong>macOS</strong>, system video effects apply to all camera input —
+          including capture cards. Click the <strong>green camera dot</strong> in
+          your menu bar (or open Control Center → Video Effects) and turn{' '}
+          <strong>Portrait, Center Stage, and Studio Light all OFF</strong>.
+        </p>
+        <p>
+          On <strong>Windows</strong>, check that no other app (Microsoft Teams,
+          Snap Camera, NVIDIA Broadcast) is applying effects to your capture card.
+        </p>
+      </>
+    ),
+  },
+  {
+    title: 'How to reduce latency',
+    body: (
+      <ul>
+        <li>
+          <strong>Use uncompressed modes.</strong> Look for{' '}
+          <em>● Uncompressed</em> in Settings → Resolution / Frame rate. 1080p@60
+          is the sweet spot.
+        </li>
+        <li>
+          <strong>Plug your laptop in.</strong> Battery saver throttles CPU/GPU
+          and can add 20+ ms.
+        </li>
+        <li>
+          <strong>Use wired headphones or laptop speakers.</strong> Bluetooth
+          adds 80–200 ms of audio latency.
+        </li>
+        <li>
+          <strong>Close other browser tabs and audio apps.</strong> They share
+          GPU and audio buffers.
+        </li>
+        <li>
+          <strong>Use Chrome, Edge, or Arc.</strong> Best WebRTC + capture
+          performance.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    title: 'Capture card not detected',
+    body: (
+      <ul>
+        <li>
+          Plug into a <strong>USB 3.0 or higher</strong> port (often blue inside
+          on PCs; any USB-C on modern Macs works).
+        </li>
+        <li>
+          Try a different port — laptop ports can route through different USB
+          controllers.
+        </li>
+        <li>
+          After plugging in, <strong>reload the page</strong>.
+        </li>
+        <li>Grant camera and microphone permission when prompted.</li>
+        <li>
+          On Mac: System Settings → Privacy & Security → Camera/Microphone →
+          confirm your browser is allowed.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    title: 'Audio is delayed or echoey',
+    body: (
+      <ul>
+        <li>Disable system video effects (see top section above).</li>
+        <li>
+          Switch from Bluetooth to wired audio — Bluetooth adds 80+ ms.
+        </li>
+        <li>
+          If recording with the mic on, use headphones to keep game audio out
+          of your voice track.
+        </li>
+        <li>
+          Close other audio apps (Discord, Music, Zoom) — they share OS audio
+          buffers.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    title: 'Recording — where do files go, what format?',
+    body: (
+      <ul>
+        <li>
+          Recordings save to your browser's default downloads folder as{' '}
+          <strong>MP4</strong> (Chrome / Edge / Arc) or <strong>WebM</strong>{' '}
+          (Firefox).
+        </li>
+        <li>
+          What you see is what you record: mirror, image adjustments, and the
+          PiP webcam are all baked into the saved file.
+        </li>
+        <li>Bitrate is 20 Mbps — high quality 1080p60 takes ~150 MB/min.</li>
+      </ul>
+    ),
+  },
+  {
+    title: 'Browser support',
+    body: (
+      <ul>
+        <li>
+          <strong>Best:</strong> Chrome 100+, Edge, Arc, Opera
+        </li>
+        <li>
+          <strong>Good:</strong> Safari 16+, Firefox 108+ (a few features are
+          limited)
+        </li>
+        <li>
+          <strong>iPad / iPhone:</strong> works in Safari with USB-C ShadowCast
+        </li>
+      </ul>
+    ),
+  },
+  {
+    title: 'Streaming to Twitch / YouTube / X',
+    body: (
+      <p>
+        Not directly built in yet. The cleanest workaround is OBS: add{' '}
+        <strong>arcade.genkithings.com</strong> as a Browser Source (or window
+        capture) and stream from there. Your existing OBS scenes still work.
+      </p>
+    ),
+  },
+  {
+    title: 'Privacy',
+    body: (
+      <p>
+        Genki Arcade runs entirely in your browser. No video, audio, or session
+        data is ever sent to a server. Settings persist locally only.
+      </p>
+    ),
+  },
+];
+
+function FaqModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="arc-faq-backdrop" onClick={onClose}>
+      <div className="arc-faq-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="arc-faq-head">
+          <span className="arc-eyebrow">Tips & FAQ</span>
+          <button className="arc-faq-close" onClick={onClose} aria-label="Close" type="button">
+            <Icon name="close" size={14} />
+          </button>
+        </div>
+        <div className="arc-faq-body">
+          {FAQ_SECTIONS.map((section, i) => (
+            <details key={i} className="arc-faq-section" open={i === 0}>
+              <summary>{section.title}</summary>
+              <div className="arc-faq-content">{section.body}</div>
+            </details>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function BuildStamp() {
   // Format the build-time ISO into "May 8, 2026 · 4:32 PM" in user-local time.

@@ -606,21 +606,163 @@ input {
 }
 
 /* =========================================================================
- * Build stamp — bottom-right corner of the stage when idle. Lets us verify
- * exactly which deployment is being tested. Hidden once streaming starts.
+ * Idle-only corner actions — bottom-right of the stage. Houses the
+ * "Tips & FAQ" trigger and the build stamp.
  * ===================================================================== */
-.arc-build-stamp {
+.arc-corner-actions {
   position: absolute;
   bottom: 12px;
   right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 3;
+}
+
+.arc-faq-trigger {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 11px;
+  font-family: 'Suisse Int\'l', 'Inter', system-ui, sans-serif;
+  color: var(--arc-muted);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.arc-faq-trigger:hover {
+  color: var(--arc-fg);
+  text-decoration: underline;
+}
+
+.arc-build-stamp {
   font-size: 10px;
   font-family: 'Suisse Int\'l', 'Inter', system-ui, sans-serif;
   color: var(--arc-muted);
   letter-spacing: 0.04em;
   opacity: 0.55;
   pointer-events: none;
-  z-index: 1;
   font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================================
+ * FAQ modal
+ * ===================================================================== */
+.arc-faq-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+.arc-faq-modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  background: var(--arc-panel);
+  border: 1px solid var(--arc-border);
+  border-radius: 10px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.arc-faq-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--arc-border);
+}
+.arc-faq-close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid var(--arc-border);
+  color: var(--arc-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.arc-faq-close:hover {
+  color: var(--arc-fg);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.arc-faq-body {
+  overflow-y: auto;
+  padding: 8px 18px 18px;
+}
+.arc-faq-section {
+  border-bottom: 1px solid var(--arc-border);
+  padding: 12px 0;
+}
+.arc-faq-section:last-of-type {
+  border-bottom: 0;
+}
+.arc-faq-section summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Nekst', 'Onest', sans-serif;
+  color: var(--arc-fg);
+  padding: 6px 0;
+  position: relative;
+  padding-right: 24px;
+}
+.arc-faq-section summary::-webkit-details-marker {
+  display: none;
+}
+.arc-faq-section summary::after {
+  content: '+';
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  font-size: 16px;
+  color: var(--arc-muted);
+  font-weight: 400;
+  transition: transform 0.15s;
+}
+.arc-faq-section[open] summary::after {
+  content: '−';
+}
+.arc-faq-section summary:hover {
+  color: var(--coral);
+}
+.arc-faq-content {
+  padding: 8px 0 4px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--arc-muted);
+}
+.arc-faq-content p {
+  margin: 0 0 8px;
+}
+.arc-faq-content p:last-child {
+  margin-bottom: 0;
+}
+.arc-faq-content ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.arc-faq-content li {
+  margin-bottom: 6px;
+}
+.arc-faq-content strong {
+  color: var(--arc-fg);
+  font-weight: 600;
+}
+.arc-faq-content em {
+  color: var(--teal);
+  font-style: normal;
 }
 
 /* =========================================================================
