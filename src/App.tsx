@@ -136,13 +136,15 @@ const RESOLUTION_OPTIONS: Array<{ value: string; label: string }> = [
 
 const FPS_OPTIONS = [120, 60, 30];
 
-// ChromaCast™ — Genki MJPG color correction. Compensates for the
-// limited-range / desaturated look of MJPG-compressed capture. Applied as
-// a CSS filter so it composes cleanly with the user's image adjustments.
-// Tuned subtly here (about half the strength of the original 4K-upscaling
-// branch's contrast(1.12) saturate(1.20)) — it's a gentle nudge, not a
-// vivid-mode preset, since over-saturation has been a reported issue.
-const CHROMACAST_FILTER = 'contrast(1.06) saturate(1.08)';
+// ChromaCast™ — Genki color correction for the browser-pipeline penalty.
+// Applied as a CSS filter so it composes at GPU paint time with zero
+// added latency (vs the upscale's WebGL roundtrip). Tuned to roughly
+// match what OBS/Camo Studio show on the same source — they have +10%
+// contrast / +18-22% saturation perceptually over the bare browser
+// output, which is what we restore here. Pairs with the upscale's
+// unsharp pass when both are on, but works on its own as the cheapest
+// way to close the color gap without any frame-pipeline cost.
+const CHROMACAST_FILTER = 'contrast(1.10) saturate(1.20)';
 
 // Per-resolution upper bound on framerate that capture cards in 2026
 // commonly deliver. 4K@120 needs HDMI 2.1 capture (rare); 1440p@120 is also
@@ -190,14 +192,16 @@ export default function App() {
   // Monitoring volume — only affects what comes out of the speakers, not the
   // recorded mix (so a quiet headphone setting doesn't tank recording levels).
   const [volume, setVolume] = useState<number>(1);
-  // ChromaCast preference is persistent across sessions. Default OFF —
-  // users opt in if they want the MJPG-color-restore filter; this avoids
-  // double-saturating displays that already render the raw output vivid.
+  // ChromaCast preference is persistent across sessions. Default ON for
+  // new users (no saved preference) — the browser pipeline visibly mutes
+  // colors vs OBS, and the filter is GPU-composited with zero latency
+  // cost, so it's a free win. Returning users keep whatever they had.
   const [chromaCastEnabled, setChromaCastEnabledState] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('arcadeChromaCast') === 'true';
+      const saved = localStorage.getItem('arcadeChromaCast');
+      return saved === null ? true : saved === 'true';
     } catch {
-      return false;
+      return true;
     }
   });
   const setChromaCastEnabled = useCallback((on: boolean) => {
@@ -1242,10 +1246,15 @@ export default function App() {
     return `${w}×${h}`;
   };
   const resolutionShort = shortRes(actualW, actualH);
-  // Upscaler runs at 2× source. When it's active, the label shows source
-  // → upscaled output so the user can see what they're actually viewing
-  // (and what their recordings/screenshots will be captured at).
-  const upscaledShort = upscaleOn ? shortRes(actualW * 2, actualH * 2) : null;
+  // Upscaler runs at up to 2× source, capped at 4K target (anything more
+  // is wasted GPU). When the cap kicks in (4K source → no resolution
+  // change, just sharpen) we hide the arrow — saying "4K → 4K" is silly.
+  const upscaleTargetW = Math.min(actualW * 2, 3840);
+  const upscaleTargetH = Math.min(actualH * 2, 2160);
+  const upscaledShort =
+    upscaleOn && (upscaleTargetW > actualW || upscaleTargetH > actualH)
+      ? shortRes(upscaleTargetW, upscaleTargetH)
+      : null;
 
   // Format detection. Prefer the live VideoFrame probe when available, else
   // fall back to bandwidth prediction. Neither is fully authoritative on
@@ -1258,11 +1267,11 @@ export default function App() {
     probedFormat ?? expectedFormat(actualW, actualH, actualFps);
   const formatIsProbed = probedFormat !== null;
 
-  // ChromaCast™ — SC3-locked AND only meaningful in MJPG mode (the filter
-  // compensates for MJPG color penalty; on already-clean uncompressed
-  // pixels it just oversaturates).
-  const chromaCastActive =
-    chromaCastEnabled && isShadowcast3 && currentFormat === 'mjpg';
+  // ChromaCast™ — SC3-locked, otherwise toggle-respecting. Used to be
+  // MJPG-only-gated, but Chrome's video pipeline on macOS loses chroma
+  // fidelity even on truly-uncompressed sources, so the filter helps
+  // everywhere. If the user has it on for an SC3, it applies.
+  const chromaCastActive = chromaCastEnabled && isShadowcast3;
   // Composed filter chain — image adjustments (currently UI-hidden but the
   // state machine still feeds them in) plus ChromaCast when active.
   const composedFilter =

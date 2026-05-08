@@ -141,6 +141,15 @@ export function UpscaleCanvas({
     const uPixel = gl.getUniformLocation(program, 'u_pixelSize');
     gl.uniform1i(uVideo, 0);
 
+    // Cap output dimensions at 4K (3840×2160). Upscaling beyond 4K is
+    // wasted work — consumer displays cap there, and quadruple-resolution
+    // canvas allocations (8K from 4K source) blow up GPU memory + draw
+    // time for zero visible win. At 4K source the pass still runs, just at
+    // 1× scale, so users keep the unsharp-mask sharpening without the
+    // 8K render.
+    const MAX_W = 3840;
+    const MAX_H = 2160;
+
     const render = () => {
       rafRef.current = requestAnimationFrame(render);
       const vEl = videoRef.current;
@@ -149,8 +158,12 @@ export function UpscaleCanvas({
       const vh = vEl.videoHeight;
       if (!vw || !vh) return;
 
-      const targetW = vw * scale;
-      const targetH = vh * scale;
+      const cappedScale = Math.max(
+        1,
+        Math.min(scale, MAX_W / vw, MAX_H / vh),
+      );
+      const targetW = Math.round(vw * cappedScale);
+      const targetH = Math.round(vh * cappedScale);
       if (canvas.width !== targetW || canvas.height !== targetH) {
         canvas.width = targetW;
         canvas.height = targetH;
