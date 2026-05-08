@@ -1247,16 +1247,22 @@ export default function App() {
   // (and what their recordings/screenshots will be captured at).
   const upscaledShort = upscaleOn ? shortRes(actualW * 2, actualH * 2) : null;
 
-  // (No reliable source-format detection available — see the format row
-  // tooltip for the architectural reason. We just expose `decodedFormat`
-  // for transparency; downstream consumers don't gate on it.)
+  // Format detection. Prefer the live VideoFrame probe when available, else
+  // fall back to bandwidth prediction. Neither is fully authoritative on
+  // macOS — see comment by probeDecodedFormat — but the simple verdict
+  // (Uncompressed / Compressed-MJPG) is the UX users prefer. The
+  // "— predicted" suffix is shown when the probe didn't fire.
   const [reqW, reqH] = resolution.split('x').map(Number);
+  const probedFormat = formatFromDecoded(decodedFormat);
+  const currentFormat: 'uncompressed' | 'mjpg' =
+    probedFormat ?? expectedFormat(actualW, actualH, actualFps);
+  const formatIsProbed = probedFormat !== null;
 
-  // ChromaCast™ — SC3-locked, otherwise toggle-respecting. We used to gate
-  // application on "format is MJPG," but browsers don't reliably expose
-  // source format on macOS, so the gate was hiding the filter even when
-  // users wanted it. If you toggle it on for an SC3, it applies.
-  const chromaCastActive = chromaCastEnabled && isShadowcast3;
+  // ChromaCast™ — SC3-locked AND only meaningful in MJPG mode (the filter
+  // compensates for MJPG color penalty; on already-clean uncompressed
+  // pixels it just oversaturates).
+  const chromaCastActive =
+    chromaCastEnabled && isShadowcast3 && currentFormat === 'mjpg';
   // Composed filter chain — image adjustments (currently UI-hidden but the
   // state machine still feeds them in) plus ChromaCast when active.
   const composedFilter =
@@ -1577,14 +1583,20 @@ export default function App() {
                       </select>
                     </SettingRow>
                     <div
-                      className="arc-format-row arc-format-pipeline"
-                      title={`Browsers expose video as decoded VideoFrames, not the source format the capture card sent. macOS Chrome typically normalizes everything to NV12 (or I420 from MJPG sources) before this app sees it — so the source format (YUY2 vs MJPG) isn't actually visible to us. Native apps like OBS bypass this with AVFoundation; that's why their picture looks crisper. For the closest match in browser, enable Enhance (4K upscale + sharpening) and ChromaCast.`}
+                      className={`arc-format-row arc-format-${currentFormat}`}
+                      title={
+                        currentFormat === 'mjpg'
+                          ? 'This combo exceeds USB 3.0 uncompressed bandwidth, so the capture card encodes to MJPG. Quality is still high but colors can look a bit flatter — toggle ChromaCast to compensate.'
+                          : 'YUY2 / NV12 uncompressed — the capture card sends raw pixels, full color fidelity.'
+                      }
                     >
-                      <span className="arc-format-mark">●</span>
+                      <span className="arc-format-mark">
+                        {currentFormat === 'mjpg' ? '▲' : '●'}
+                      </span>
                       <span>
-                        Browser pipeline
-                        {decodedFormat && (
-                          <span className="arc-format-sub"> · decoded as {decodedFormat}</span>
+                        {currentFormat === 'mjpg' ? 'Compressed (MJPG)' : 'Uncompressed'}
+                        {!formatIsProbed && (
+                          <span className="arc-format-sub"> — predicted</span>
                         )}
                       </span>
                     </div>
