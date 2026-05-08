@@ -307,21 +307,10 @@ export default function App() {
     const [w, h] = resolution.split('x').map(Number);
 
     try {
-      // Standard constraints + an `advanced` block hinting at uncompressed
-      // pixel formats. WebRTC has no portable knob to force YUY2/NV12, but
-      // Chromium honors non-standard `pictureFormat` / `pixelFormat` hints
-      // on some platforms; on others it's silently ignored, which is fine.
       const videoConstraints: MediaTrackConstraints = {
         width: { ideal: w },
         height: { ideal: h },
         frameRate: { ideal: fps },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...({
-          advanced: [
-            { pixelFormat: 'yuy2' },
-            { pixelFormat: 'nv12' },
-          ],
-        } as any),
       };
       if (videoDeviceId) videoConstraints.deviceId = { exact: videoDeviceId };
 
