@@ -204,6 +204,8 @@ export default function App() {
   // 16:9 default — matches the typical webcam stream (1280×720) so the PiP
   // box doesn't crop sides on screen or stretch in screenshots.
   const [pipSize, setPipSize] = useState<{ w: number; h: number }>({ w: 256, h: 144 });
+  const [pipActualSettings, setPipActualSettings] =
+    useState<MediaTrackSettings | null>(null);
 
   // Live snapshot of visual settings, read by the recording RAF loop so
   // mid-recording toggles take effect without restarting the recorder.
@@ -507,6 +509,7 @@ export default function App() {
     if (!pipOn) {
       pipStreamRef.current?.getTracks().forEach((t) => t.stop());
       pipStreamRef.current = null;
+      setPipActualSettings(null);
       if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
       return;
     }
@@ -548,6 +551,8 @@ export default function App() {
       }
       pipStreamRef.current?.getTracks().forEach((t) => t.stop());
       pipStreamRef.current = stream;
+      const pipTrack = stream.getVideoTracks()[0];
+      setPipActualSettings(pipTrack ? pipTrack.getSettings() : null);
       if (pipVideoRef.current) {
         pipVideoRef.current.srcObject = stream;
         pipVideoRef.current.play().catch(() => {});
@@ -557,6 +562,23 @@ export default function App() {
       cancelled = true;
     };
   }, [pipOn, pipDeviceId]);
+
+  // Rebind the PiP stream when the <video> element is recreated. The PiP
+  // markup lives behind `pipOn && running`, so when `start()` toggles
+  // running false→true (every device swap goes through stopStreams), the
+  // element unmounts and React clears `pipVideoRef.current`. The stream
+  // itself survives in `pipStreamRef`, but its srcObject binding does not —
+  // without this effect the PiP stays black after a Swap.
+  useEffect(() => {
+    if (!pipOn || !running) return;
+    const vid = pipVideoRef.current;
+    const stream = pipStreamRef.current;
+    if (!vid || !stream) return;
+    if (vid.srcObject !== stream) {
+      vid.srcObject = stream;
+      vid.play().catch(() => {});
+    }
+  }, [pipOn, running]);
 
   // When PiP turns on, prefer a *physical* camera that isn't the main input.
   // If none exists (only one camera, or only virtual alternatives) we leave
@@ -1238,13 +1260,9 @@ export default function App() {
                         {currentFormat === 'mjpg' ? '▲' : '●'}
                       </span>
                       {currentFormat === 'mjpg' ? (
-                        <span>
-                          MJPG <span className="arc-format-sub">— compressed</span>
-                        </span>
+                        <span>Compressed (MJPG)</span>
                       ) : (
-                        <span>
-                          Uncompressed <span className="arc-format-sub">— best color</span>
-                        </span>
+                        <span>Uncompressed</span>
                       )}
                     </div>
 
@@ -1290,7 +1308,17 @@ export default function App() {
                 {/* Input 2 — PiP */}
                 {pipOn && (
                   <div className="arc-settings-section">
-                    <div className="arc-settings-section-title">Input 2 — PiP</div>
+                    <div className="arc-settings-section-title">
+                      Input 2 — PiP
+                      {pipActualSettings?.width && pipActualSettings?.height && (
+                        <span className="arc-settings-section-meta">
+                          {pipActualSettings.width}×{pipActualSettings.height}
+                          {pipActualSettings.frameRate
+                            ? ` · ${Math.round(pipActualSettings.frameRate)} fps`
+                            : ''}
+                        </span>
+                      )}
+                    </div>
                     <div className="arc-settings-grid">
                       <SettingRow label={t.videoDevice}>
                         <select

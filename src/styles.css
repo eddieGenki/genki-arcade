@@ -952,6 +952,17 @@ input {
   letter-spacing: 0.16em;
   color: var(--arc-fg);
   margin-bottom: 10px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.arc-settings-section-meta {
+  color: var(--arc-muted);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-size: 11px;
 }
 
 .arc-settings-grid {
