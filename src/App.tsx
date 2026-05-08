@@ -302,15 +302,37 @@ export default function App() {
   // -------------------------------------------------------------------------
   const refreshDevices = useCallback(async () => {
     const all = await navigator.mediaDevices.enumerateDevices();
+
+    // Disambiguate same-named devices (e.g. two ShadowCast 3 units plugged
+    // in) by appending #1 / #2 etc. Numbers are assigned per groupId so the
+    // same physical device gets the same number across video and audio
+    // dropdowns — picking "ShadowCast 3 #1" video reliably pairs with
+    // "ShadowCast 3 #1" audio. groupId is stable within a session.
+    const groupIdsByLabel = new Map<string, string[]>();
+    for (const d of all) {
+      if (!d.label || !d.groupId) continue;
+      const list = groupIdsByLabel.get(d.label) ?? [];
+      if (!list.includes(d.groupId)) list.push(d.groupId);
+      groupIdsByLabel.set(d.label, list);
+    }
+    const labelFor = (d: MediaDeviceInfo, fallback: string): string => {
+      const base = d.label || fallback;
+      if (!d.label) return base;
+      const groups = groupIdsByLabel.get(d.label);
+      if (!groups || groups.length <= 1) return base;
+      const idx = groups.indexOf(d.groupId);
+      return idx >= 0 ? `${base} #${idx + 1}` : base;
+    };
+
     const vids: DeviceInfo[] = all
       .filter((d) => d.kind === 'videoinput')
-      .map((d) => ({ deviceId: d.deviceId, label: d.label || 'Camera' }));
+      .map((d) => ({ deviceId: d.deviceId, label: labelFor(d, 'Camera') }));
     const mics: DeviceInfo[] = all
       .filter((d) => d.kind === 'audioinput')
-      .map((d) => ({ deviceId: d.deviceId, label: d.label || 'Microphone' }));
+      .map((d) => ({ deviceId: d.deviceId, label: labelFor(d, 'Microphone') }));
     const outs: DeviceInfo[] = all
       .filter((d) => d.kind === 'audiooutput')
-      .map((d) => ({ deviceId: d.deviceId, label: d.label || 'Speaker' }));
+      .map((d) => ({ deviceId: d.deviceId, label: labelFor(d, 'Speaker') }));
 
     setVideoDevices(vids);
     setAudioDevices(mics);
