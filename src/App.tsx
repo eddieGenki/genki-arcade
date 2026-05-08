@@ -93,6 +93,7 @@ export default function App() {
   const settingsRef = useRef<HTMLDivElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const audioNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const monitorGainRef = useRef<GainNode | null>(null);
   const videoStreamRef = useRef<MediaStream | null>(null);
   const audioStreamRef = useRef<MediaStream | null>(null);
 
@@ -110,6 +111,9 @@ export default function App() {
   const [fps, setFps] = useState<number>(60);
   const [mirrored, setMirrored] = useState<boolean>(false);
   const [audioOn, setAudioOn] = useState<boolean>(true);
+  // Monitoring volume — only affects what comes out of the speakers, not the
+  // recorded mix (so a quiet headphone setting doesn't tank recording levels).
+  const [volume, setVolume] = useState<number>(1);
 
   // ---- Mic ---------------------------------------------------------------
   const [micOn, setMicOn] = useState<boolean>(false);
@@ -171,7 +175,9 @@ export default function App() {
   const [pipDeviceId, setPipDeviceId] = useState<string>('');
   const [pipMirrored, setPipMirrored] = useState<boolean>(true);
   const [pipPos, setPipPos] = useState<{ x: number; y: number }>({ x: -1, y: -1 });
-  const [pipSize] = useState<{ w: number; h: number }>({ w: 200, h: 150 });
+  // 16:9 default — matches the typical webcam stream (1280×720) so the PiP
+  // box doesn't crop sides on screen or stretch in screenshots.
+  const [pipSize, setPipSize] = useState<{ w: number; h: number }>({ w: 256, h: 144 });
 
   // Live snapshot of visual settings, read by the recording RAF loop so
   // mid-recording toggles take effect without restarting the recorder.
@@ -252,6 +258,8 @@ export default function App() {
 
     audioNodeRef.current?.disconnect();
     audioNodeRef.current = null;
+    monitorGainRef.current?.disconnect();
+    monitorGainRef.current = null;
     micNodeRef.current?.disconnect();
     micNodeRef.current = null;
     mixDestRef.current = null;
@@ -271,10 +279,21 @@ export default function App() {
     const [w, h] = resolution.split('x').map(Number);
 
     try {
+      // Standard constraints + an `advanced` block hinting at uncompressed
+      // pixel formats. WebRTC has no portable knob to force YUY2/NV12, but
+      // Chromium honors non-standard `pictureFormat` / `pixelFormat` hints
+      // on some platforms; on others it's silently ignored, which is fine.
       const videoConstraints: MediaTrackConstraints = {
         width: { ideal: w },
         height: { ideal: h },
         frameRate: { ideal: fps },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...({
+          advanced: [
+            { pixelFormat: 'yuy2' },
+            { pixelFormat: 'nv12' },
+          ],
+        } as any),
       };
       if (videoDeviceId) videoConstraints.deviceId = { exact: videoDeviceId };
 
@@ -328,7 +347,14 @@ export default function App() {
 
         const src = ctx.createMediaStreamSource(audioStream);
         audioNodeRef.current = src;
-        src.connect(ctx.destination);
+        // Monitor path goes through a gain node so the volume slider only
+        // affects speaker output. Recording mix taps the source directly so
+        // the recorded file stays at full level regardless of monitor volume.
+        const monitorGain = ctx.createGain();
+        monitorGain.gain.value = volumeRef.current;
+        monitorGainRef.current = monitorGain;
+        src.connect(monitorGain);
+        monitorGain.connect(ctx.destination);
         src.connect(mixDest);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -403,6 +429,20 @@ export default function App() {
       cancelled = true;
     };
   }, [micOn, micDeviceId, running]);
+
+  // Live volume control — slide updates the gain node without restarting
+  // the audio graph. Smooth ramp avoids a click on rapid drags. The ref
+  // mirror lets `start()` initialize the gain at the current slider value
+  // even though `volume` isn't in its dep list (avoiding restarts on drag).
+  const volumeRef = useRef(volume);
+  useEffect(() => {
+    volumeRef.current = volume;
+    const gain = monitorGainRef.current;
+    const ctx = audioCtxRef.current;
+    if (!gain || !ctx) return;
+    gain.gain.cancelScheduledValues(ctx.currentTime);
+    gain.gain.setTargetAtTime(volume, ctx.currentTime, 0.015);
+  }, [volume]);
 
   // Re-apply video constraints on the fly when resolution / fps change.
   useEffect(() => {
@@ -550,6 +590,40 @@ export default function App() {
     window.addEventListener('mouseup', onUp);
   }, []);
 
+  // Resize from the bottom-right corner. Aspect ratio is preserved (matches
+  // the source webcam, 16:9 by default) so we never reintroduce the canvas
+  // stretch bug. Min/max constrained to keep the box usable.
+  const onPipResizeMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const stage = stageRef.current;
+      if (!stage) return;
+      const stageRect = stage.getBoundingClientRect();
+      const startX = e.clientX;
+      const startW = pipSize.w;
+      const startH = pipSize.h;
+      const aspect = startW / startH;
+      // If PiP is anchored to bottom-right (pipPos.x < 0), keep that anchor;
+      // otherwise the user has dragged it and we resize from top-left.
+      const onMove = (ev: MouseEvent) => {
+        const dx = ev.clientX - startX;
+        const minW = 120;
+        const maxW = Math.min(stageRect.width - 24, 960);
+        const newW = Math.max(minW, Math.min(maxW, startW + dx));
+        const newH = newW / aspect;
+        setPipSize({ w: newW, h: newH });
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [pipSize.w, pipSize.h],
+  );
+
   // -------------------------------------------------------------------------
   // Composite drawing (screenshot + recording)
   // -------------------------------------------------------------------------
@@ -591,20 +665,35 @@ export default function App() {
           stage.clientWidth,
           stage.clientHeight,
         );
-        const sx = canvas.width / disp.w;
-        const sy = canvas.height / disp.h;
-        const cx = (pipRect.left - stageRect.left - disp.x) * sx;
-        const cy = (pipRect.top - stageRect.top - disp.y) * sy;
-        const cw = pipRect.width * sx;
-        const ch = pipRect.height * sy;
+        const scaleX = canvas.width / disp.w;
+        const scaleY = canvas.height / disp.h;
+        const cx = (pipRect.left - stageRect.left - disp.x) * scaleX;
+        const cy = (pipRect.top - stageRect.top - disp.y) * scaleY;
+        const cw = pipRect.width * scaleX;
+        const ch = pipRect.height * scaleY;
+        // Mimic CSS object-fit: cover — the on-screen <video> crops the
+        // source to fill the box; the canvas needs the same source-rect crop
+        // or the image gets stretched (e.g. 16:9 webcam into a 4:3 box).
+        const srcAspect = pipVid.videoWidth / pipVid.videoHeight;
+        const dstAspect = cw / ch;
+        let srcX = 0, srcY = 0;
+        let srcW = pipVid.videoWidth;
+        let srcH = pipVid.videoHeight;
+        if (srcAspect > dstAspect) {
+          srcW = pipVid.videoHeight * dstAspect;
+          srcX = (pipVid.videoWidth - srcW) / 2;
+        } else if (srcAspect < dstAspect) {
+          srcH = pipVid.videoWidth / dstAspect;
+          srcY = (pipVid.videoHeight - srcH) / 2;
+        }
         ctx.save();
         ctx.filter = 'none';
         if (pmFlag) {
           ctx.translate(cx + cw, cy);
           ctx.scale(-1, 1);
-          ctx.drawImage(pipVid, 0, 0, cw, ch);
+          ctx.drawImage(pipVid, srcX, srcY, srcW, srcH, 0, 0, cw, ch);
         } else {
-          ctx.drawImage(pipVid, cx, cy, cw, ch);
+          ctx.drawImage(pipVid, srcX, srcY, srcW, srcH, cx, cy, cw, ch);
         }
         ctx.restore();
       }
@@ -812,9 +901,11 @@ export default function App() {
     return `${actualW}×${actualH}`;
   })();
 
-  // Format prediction for the user-selected resolution + fps combo
+  // Format prediction. Use the *actual* negotiated values when known so the
+  // indicator reflects what the device is really delivering — not just what
+  // we asked for. Falls back to requested values pre-negotiation.
   const [reqW, reqH] = resolution.split('x').map(Number);
-  const currentFormat = expectedFormat(reqW, reqH, fps);
+  const currentFormat = expectedFormat(actualW, actualH, actualFps);
 
   // Helpers to filter dropdowns to what the *current* main device actually
   // supports. Devices report `width.max`, `height.max`, `frameRate.max` via
@@ -1004,6 +1095,12 @@ export default function App() {
                 <Icon name="close" size={12} />
               </button>
             </div>
+            <div
+              className="arc-pip-resize"
+              onMouseDown={onPipResizeMouseDown}
+              title="Drag to resize"
+              aria-label="Resize webcam"
+            />
           </div>
         )}
       </main>
@@ -1184,14 +1281,34 @@ export default function App() {
           <div className="arc-tools-divider" />
 
           {/* Live-feed modifiers — affect what you see/hear right now */}
-          <ToolBtn
-            icon="audio"
-            label={t.audioPassthrough}
-            active={audioOn}
-            onClick={() => setAudioOn((v) => !v)}
-            onTooltipEnter={onIconEnter}
-            onTooltipLeave={onIconLeave}
-          />
+          <div className="arc-audio-wrap">
+            <ToolBtn
+              icon="audio"
+              label={t.audioPassthrough}
+              active={audioOn}
+              onClick={() => setAudioOn((v) => !v)}
+              onTooltipEnter={onIconEnter}
+              onTooltipLeave={onIconLeave}
+            />
+            <div
+              className="arc-volume-popover"
+              role="group"
+              aria-label="Monitor volume"
+            >
+              <input
+                className="arc-volume-slider"
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={Math.round(volume * 100)}
+                onChange={(e) => setVolume(Number(e.target.value) / 100)}
+                disabled={!audioOn}
+                aria-label="Monitor volume"
+              />
+              <div className="arc-volume-readout">{Math.round(volume * 100)}</div>
+            </div>
+          </div>
           <ToolBtn
             icon="mirror"
             label={t.mirror}
