@@ -821,7 +821,7 @@ input {
 .arc-ticker-user {
   display: inline;
   margin-right: 6px;
-  color: var(--teal);
+  color: var(--purple);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   text-decoration: none;
@@ -854,7 +854,7 @@ a.arc-ticker-user:hover {
 .arc-ticker-link {
   display: inline;
   margin-left: 6px;
-  color: var(--coral);
+  color: var(--purple);
   text-decoration: none;
   font-weight: 600;
   white-space: nowrap;

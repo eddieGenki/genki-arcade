@@ -2183,10 +2183,10 @@ function NewsTicker() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            @{item.headline.label}
+            {item.headline.label}
           </a>
         ) : (
-          <span className="arc-ticker-user">@{item.headline.label}</span>
+          <span className="arc-ticker-user">{item.headline.label}</span>
         ))}
       <span className="arc-ticker-text">
         {typed}
