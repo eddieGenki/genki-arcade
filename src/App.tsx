@@ -259,6 +259,24 @@ export default function App() {
     }
   }, []);
 
+  // News ticker can be dismissed by the user — useful when the typewriter
+  // animation is distracting during a run. Persists across reloads.
+  const [tickerDismissed, setTickerDismissedState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('arcadeTickerDismissed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const dismissTicker = useCallback(() => {
+    setTickerDismissedState(true);
+    try {
+      localStorage.setItem('arcadeTickerDismissed', 'true');
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   // ---- Image adjustments (state only — UI hidden in this design pass) -----
   // Preserved so the canvas pipeline still receives them. We can re-introduce
   // the popover later as a settings entry.
@@ -1840,7 +1858,22 @@ export default function App() {
             </div>
           </div>
 
-          <div className="arc-ticker-slot">{!running && <NewsTicker />}</div>
+          <div className="arc-ticker-slot">
+            {!tickerDismissed && (
+              <>
+                <NewsTicker />
+                <button
+                  className="arc-ticker-close"
+                  onClick={dismissTicker}
+                  aria-label="Hide news ticker"
+                  title="Hide news ticker"
+                  type="button"
+                >
+                  <Icon name="close" size={11} />
+                </button>
+              </>
+            )}
+          </div>
 
           <ToolBtn
             icon="fullscreen"

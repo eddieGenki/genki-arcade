@@ -856,6 +856,35 @@ input {
   text-decoration: underline;
 }
 
+/* Dismiss button — hover-revealed so it doesn't compete with the
+ * typewriter animation visually, but discoverable when the cursor is
+ * already in the ticker area. focus-within lets keyboard users tab to it. */
+.arc-ticker-close {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-left: 8px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--arc-border);
+  border-radius: 4px;
+  color: var(--arc-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, border-color 0.15s;
+}
+.arc-ticker-slot:hover .arc-ticker-close,
+.arc-ticker-slot:focus-within .arc-ticker-close {
+  opacity: 1;
+}
+.arc-ticker-close:hover {
+  color: var(--arc-fg);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 /* =========================================================================
  * PiP
  * ===================================================================== */
