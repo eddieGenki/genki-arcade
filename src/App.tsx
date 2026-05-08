@@ -2101,19 +2101,22 @@ function FaqModal({ onClose }: { onClose: () => void }) {
 }
 
 function BuildStamp() {
-  // Format the build-time ISO into "May 8, 2026 · 4:32 PM" in user-local time.
-  // The user can quickly verify which deployment they're poking at by
-  // glancing at the idle screen.
+  // Format the build-time ISO in the user's locale + timezone. Passing
+  // `undefined` for the locale lets the browser pick (so international
+  // visitors get their native date format), and timeZoneName: 'short'
+  // tags the result with the zone abbreviation (PDT / EDT / GMT+8 etc)
+  // so it's unambiguous that the time shown is local to the viewer, not
+  // the server.
   let label = 'Build unknown';
   try {
     const d = new Date(__BUILD_TIME__);
-    label = d.toLocaleString('en-US', {
+    label = d.toLocaleString(undefined, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: 'numeric',
       minute: '2-digit',
-      hour12: true,
+      timeZoneName: 'short',
     });
   } catch {
     /* ignore */
