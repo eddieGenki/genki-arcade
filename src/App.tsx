@@ -46,6 +46,53 @@ function expectedFormat(w: number, h: number, fps: number): 'uncompressed' | 'mj
   return bps <= USB3_PRACTICAL_BPS ? 'uncompressed' : 'mjpg';
 }
 
+// Probe the actual decoded format of the live track via
+// MediaStreamTrackProcessor (Chrome 94+). The browser doesn't expose the
+// SOURCE format (YUY2 vs MJPG) directly — only the decoded VideoFrame
+// format — but on macOS/Chrome the mapping is reliable enough to be
+// useful: YUY2 source passes through as NV12, MJPG source decodes to
+// I420. Returns null if the API isn't available or the probe fails, so
+// callers fall back to the bandwidth prediction.
+async function probeDecodedFormat(track: MediaStreamTrack): Promise<string | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const Processor = (globalThis as any).MediaStreamTrackProcessor;
+  if (!Processor) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let reader: any = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const processor: any = new Processor({ track });
+    reader = processor.readable.getReader();
+    const timeout = new Promise<{ value: undefined }>((resolve) =>
+      setTimeout(() => resolve({ value: undefined }), 2000),
+    );
+    const result = await Promise.race([reader.read(), timeout]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const frame: any = result.value;
+    const format: string | null = frame?.format ?? null;
+    frame?.close?.();
+    return format;
+  } catch {
+    return null;
+  } finally {
+    try {
+      reader?.cancel();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+// Map a decoded-frame format string to our high-level 'uncompressed' /
+// 'mjpg' bucket. Conservative — only maps the cases we're confident about.
+function formatFromDecoded(decoded: string | null): 'uncompressed' | 'mjpg' | null {
+  if (!decoded) return null;
+  const f = decoded.toUpperCase();
+  if (f.includes('NV12') || f.includes('YUY2') || f.includes('UYVY')) return 'uncompressed';
+  if (f.includes('I420') || f.includes('YV12') || f.includes('YUV420')) return 'mjpg';
+  return null;
+}
+
 // Compute the area within a stage element that the main <video> actually
 // occupies (object-fit: contain leaves letterbox bars). Used to translate
 // PiP screen position into canvas (native video) coordinates.
@@ -153,6 +200,10 @@ export default function App() {
   const [error, setError] = useState<string>('');
   const [actualSettings, setActualSettings] = useState<MediaTrackSettings | null>(null);
   const [mainCapabilities, setMainCapabilities] = useState<MediaTrackCapabilities | null>(null);
+  // Decoded VideoFrame format from MediaStreamTrackProcessor probe (e.g.
+  // 'NV12', 'I420'). null when the API is unavailable or the probe hasn't
+  // returned yet — in those cases we fall back to bandwidth prediction.
+  const [decodedFormat, setDecodedFormat] = useState<string | null>(null);
   const [hasAccess, setHasAccess] = useState<boolean>(false);
 
   // ---- Recording ----------------------------------------------------------
@@ -298,6 +349,7 @@ export default function App() {
     setRunning(false);
     setActualSettings(null);
     setMainCapabilities(null);
+    setDecodedFormat(null);
   }, []);
 
   const start = useCallback(async () => {
@@ -333,6 +385,11 @@ export default function App() {
       setMainCapabilities(
         typeof vTrack.getCapabilities === 'function' ? vTrack.getCapabilities() : null,
       );
+      // Async probe of decoded frame format. Non-blocking — the indicator
+      // shows the bandwidth prediction until this resolves. No-op on browsers
+      // that don't implement MediaStreamTrackProcessor.
+      setDecodedFormat(null);
+      probeDecodedFormat(vTrack).then(setDecodedFormat);
 
       // Audio graph: always-on so mic + game audio can mix into one stream.
       const ctx = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
@@ -938,11 +995,14 @@ export default function App() {
     return `${actualW}×${actualH}`;
   })();
 
-  // Format prediction. Use the *actual* negotiated values when known so the
-  // indicator reflects what the device is really delivering — not just what
-  // we asked for. Falls back to requested values pre-negotiation.
+  // Format detection. Prefer the live VideoFrame probe (authoritative), else
+  // fall back to bandwidth prediction. The probe is async and may take a
+  // moment to land — until then the prediction is shown.
   const [reqW, reqH] = resolution.split('x').map(Number);
-  const currentFormat = expectedFormat(actualW, actualH, actualFps);
+  const probedFormat = formatFromDecoded(decodedFormat);
+  const currentFormat: 'uncompressed' | 'mjpg' =
+    probedFormat ?? expectedFormat(actualW, actualH, actualFps);
+  const formatIsProbed = probedFormat !== null;
 
   // ChromaCast™ — gated to ShadowCast 3 specifically AND only meaningful in
   // MJPG mode (the filter compensates for MJPG's color penalty; on
@@ -1240,19 +1300,26 @@ export default function App() {
                     <div
                       className={`arc-format-row arc-format-${currentFormat}`}
                       title={
-                        currentFormat === 'mjpg'
-                          ? 'This combo exceeds USB 3.0 uncompressed bandwidth, so the capture card encodes to MJPG. Quality is still high but colors can look a bit flatter.'
-                          : 'YUY2 / NV12 uncompressed — the capture card sends raw pixels, full color fidelity.'
+                        formatIsProbed
+                          ? `Detected from the live video frames: decoded format ${decodedFormat}. ${
+                              currentFormat === 'mjpg'
+                                ? 'I420-class decode strongly implies an MJPG source — the device compressed the feed before sending it.'
+                                : 'NV12-class decode means the device sent raw YUY2 pixels with full color fidelity.'
+                            }`
+                          : currentFormat === 'mjpg'
+                            ? 'Predicted (live probe unavailable). This combo exceeds USB 3.0 uncompressed bandwidth, so the capture card likely encodes to MJPG.'
+                            : 'Predicted (live probe unavailable). Bandwidth fits USB 3.0 uncompressed, so the capture card likely sends raw YUY2/NV12.'
                       }
                     >
                       <span className="arc-format-mark">
                         {currentFormat === 'mjpg' ? '▲' : '●'}
                       </span>
-                      {currentFormat === 'mjpg' ? (
-                        <span>Compressed (MJPG)</span>
-                      ) : (
-                        <span>Uncompressed</span>
-                      )}
+                      <span>
+                        {currentFormat === 'mjpg' ? 'Compressed (MJPG)' : 'Uncompressed'}
+                        {!formatIsProbed && (
+                          <span className="arc-format-sub"> — predicted</span>
+                        )}
+                      </span>
                     </div>
 
                     {/* ChromaCast™ — only shown when the current combo is
