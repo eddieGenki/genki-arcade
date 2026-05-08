@@ -15,14 +15,14 @@ export interface NewsItem {
 }
 
 export const NEWS_ITEMS: NewsItem[] = [
-  // ── Genki product (official voice — no username) ─────────────────────
+  // ── Genki product (3) ────────────────────────────────────────────────
   {
     id: 'welcome',
-    text: "you're on the new Genki Arcade — fresh browser build, ShadowCast 3 ready, plays nice with most other capture cards too.",
+    text: "you're on the new Genki Arcade — fresh browser build, optimized for ShadowCast 3, plays nice with most other capture cards too.",
   },
   {
     id: 'covert-dock-3',
-    text: 'Covert Dock 3 sold out in 2 weeks 🫠 restock landing early June.',
+    text: 'Covert Dock 3 sold out in 2 weeks 🫠 restock landing mid-June. backorder now to skip the line.',
     link: {
       href: 'https://www.genkithings.com/products/covert-dock-3',
       label: 'Backorder yours',
@@ -30,75 +30,65 @@ export const NEWS_ITEMS: NewsItem[] = [
   },
   {
     id: 'genki-grips',
-    text: 'Genki Grips just unlocked more colors. ships next month — late pledge still open.',
+    text: 'Genki Grips just unlocked new colorways. late pledges are live on Kickstarter — get in before shipping.',
     link: {
       href: 'https://www.kickstarter.com/projects/humanthings/genkigrips',
       label: 'Pledge on Kickstarter',
     },
   },
+
+  // ── Switch 2 / Nintendo (5) ──────────────────────────────────────────
   {
-    id: 'shadowcast-cheer',
-    text: 'ShadowCast 3 pumps 4K over a single USB-C and still fits in your pocket. tiny powerhouse.',
+    id: 'yoshi-may-21',
+    text: "Yoshi and the Mysterious Book is May 21, Switch 2 exclusive. Nintendo continues its 'we don't need GTA 6' victory tour.",
+  },
+  {
+    id: 'indy-switch2',
+    text: 'Indiana Jones and the Great Circle hits Switch 2 May 12. nazi-punching is now portable. the dream of 1981, realized 🤠',
+  },
+  {
+    id: 'starfox-june-25',
+    text: "Star Fox returns June 25, Switch 2 only. 'cinematic remake' of 64. Andross has had 28 years to think about what he did.",
+  },
+  {
+    id: 'pokopia-4m',
+    text: 'Pokémon Pokopia just crossed 4M units. Game Freak accidentally invented the Stardew killer and they did it in cargo shorts.',
+  },
+  {
+    id: 'switch2-19m',
+    text: 'Switch 2 sits at 19.86M units. Sony does a State of Play, Microsoft does a showcase, Nintendo does a printer 🖨️',
   },
 
-  // ── Gaming culture — short observations ──────────────────────────────
+  // ── Big multi-platform launches (4) ──────────────────────────────────
   {
-    id: 'star-fox',
-    text: 'hot take needed: the new Star Fox art style — bold Nintendo flex, or cursed timeline?',
+    id: 'mixtape-launch',
+    text: 'Mixtape dropped this week 🎵 skate-around-90s-suburbia vibes, no goals. millennial nostalgia is a trillion-dollar industry.',
   },
   {
-    id: 'gta6',
-    text: "GTA 6 is still 'coming soon.' we've watched two console generations ship in the time Rockstar's been polishing it.",
+    id: 'forza-tokyo',
+    text: "Forza Horizon 6: Tokyo, May 19. Microsoft outsourced 'go viral on TikTok' to Playground Games and they delivered.",
   },
   {
-    id: 'mixtape',
-    text: 'Mixtape drops today 🎵 skating around late-90s suburbia is on tonight\'s queue.',
+    id: 'bond-may-27',
+    text: "007 First Light, May 27. young Bond, full stealth-action. IO Interactive's pivot from Hitman to Bond is the smoothest M&A in gaming 🍸",
   },
   {
-    id: 'forza-h6',
-    text: 'Forza Horizon 6 with Tokyo as the map ✨ drifting Shibuya scramble at 200mph is going to be a core memory.',
-  },
-  {
-    id: 'handhelds',
-    text: 'handheld gaming in 2026 is unreal. Switch 2, Steam Deck 2, ROG Ally X, Lenovo Legion Go — pick your fighter.',
+    id: 'castlevania-belmont',
+    text: "new 2D Castlevania: Belmont's Curse, from Konami × Motion Twin (Dead Cells). best decision Konami has made in 15 years. low bar — still counts.",
   },
 
-  // ── Chat-style cheers (with @usernames) ──────────────────────────────
+  // ── Hype + market commentary (3) ─────────────────────────────────────
   {
-    id: 'chat-cheer-1',
-    username: 'gamerthing24',
-    text: 'yo your run tonight is looking clean 🔥 keep cookin',
+    id: 'sgf-countdown',
+    text: "Summer Game Fest is one month out. June 5, Dolby Theatre, ~40 games in 2 hours. Geoff Keighley's annual one-man Olympics 🎤",
   },
   {
-    id: 'chat-cheer-2',
-    username: 'speedrun_dad',
-    text: "send it. we're all rooting for you over here",
+    id: 'gta6-nov',
+    text: "GTA 6 delayed to Nov 19, 2026. Strauss Zelnick is single-handedly keeping the 'soon™' meme alive. the streets remain unmade.",
   },
   {
-    id: 'chat-cheer-3',
-    username: 'neonshreds',
-    text: 'GG WP regardless of how this one shakes out',
-  },
-  {
-    id: 'chat-cheer-4',
-    username: 'arcadequeen',
-    text: 'i have so much faith in you rn 🌟',
-  },
-  {
-    id: 'chat-cheer-5',
-    username: 'late_night_hero',
-    text: 'late-night gaming session is sacred. respect.',
-  },
-  {
-    id: 'chat-cheer-6',
-    username: 'framedrop_devon',
-    text: 'wherever you are right now, someone out there is quietly cheering for your run',
-  },
-
-  // ── Tip ─────────────────────────────────────────────────────────────
-  {
-    id: 'pip-tip',
-    text: 'pro tip: drag the PiP webcam anywhere. top-right is the streamer standard. bottom-left is the rebel choice.',
+    id: 'handhelds-2026',
+    text: '2026 handheld market check: Switch 2 (printing), Steam Deck 2 (cooking), ROG Ally X (refusing to lose), Lenovo Legion Go (vibing). pick a fighter.',
   },
 ];
 
