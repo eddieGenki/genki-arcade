@@ -37,7 +37,7 @@ export const NEWS_ITEMS: NewsItem[] = [
     },
   },
 
-  // ── Switch 2 / Nintendo (5) ──────────────────────────────────────────
+  // ── Switch 2 / Nintendo (6) ──────────────────────────────────────────
   {
     id: 'yoshi-may-21',
     text: "Yoshi and the Mysterious Book is May 21, Switch 2 exclusive. Nintendo continues its 'we don't need GTA 6' victory tour.",
@@ -58,6 +58,10 @@ export const NEWS_ITEMS: NewsItem[] = [
     id: 'switch2-19m',
     text: 'Switch 2 sits at 19.86M units. Sony does a State of Play, Microsoft does a showcase, Nintendo does a printer 🖨️',
   },
+  {
+    id: 'switch2-price',
+    text: 'Nintendo just hiked Switch 2 prices worldwide. tariffs gonna tariff. the global console market collectively winces 🪙',
+  },
 
   // ── Big multi-platform launches (4) ──────────────────────────────────
   {
@@ -77,7 +81,7 @@ export const NEWS_ITEMS: NewsItem[] = [
     text: "new 2D Castlevania: Belmont's Curse, from Konami × Motion Twin (Dead Cells). best decision Konami has made in 15 years. low bar — still counts.",
   },
 
-  // ── Hype + market commentary (3) ─────────────────────────────────────
+  // ── Hype + market commentary (5) ─────────────────────────────────────
   {
     id: 'sgf-countdown',
     text: "Summer Game Fest is one month out. June 5, Dolby Theatre, ~40 games in 2 hours. Geoff Keighley's annual one-man Olympics 🎤",
@@ -89,6 +93,24 @@ export const NEWS_ITEMS: NewsItem[] = [
   {
     id: 'handhelds-2026',
     text: '2026 handheld market check: Switch 2 (printing), Steam Deck 2 (cooking), ROG Ally X (refusing to lose), Lenovo Legion Go (vibing). pick a fighter.',
+  },
+  {
+    id: 'steam-controller-soldout',
+    text: "new Steam Controller sold out in 30 minutes. Valve's already opening a reservation queue. word on the street: Genki's cooking one that outperforms it 👀",
+  },
+  {
+    id: 'steam-machine-rumor',
+    text: "shipping records show 15K+ unmarked consoles arriving at Valve warehouses. SteamOS 3.8.0 quietly slipped in 'Steam Machine' references. the long con may finally be ending 🕵️",
+  },
+
+  // ── Community / viral (2) ────────────────────────────────────────────
+  {
+    id: 'minecraft-saved-tweet',
+    text: "viral on X: @boredcrow24 just tweeted 'minecraft has been saved' with zero context. 2.5K likes. Mojang silent. the internet is unwell 🟫",
+  },
+  {
+    id: 'smash-ai-port-drama',
+    text: "the new native Smash Bros PC port is reportedly 100% AI-generated. r/gaming is filing for emotional damages. 'is it a port if no human touched the code?' 🤖",
   },
 ];
 
