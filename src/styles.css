@@ -1084,6 +1084,19 @@ input {
 .arc-pip-popover-grid {
   display: grid;
   gap: 10px;
+  /* Long device labels (e.g. "FaceTime HD Camera (D288:CE50)") would
+   * otherwise size the grid to the option text and push selects past
+   * the popover edge. min-width: 0 + width: 100% on selects keeps them
+   * shrink-fit to the column width. */
+  min-width: 0;
+}
+.arc-pip-popover-grid .arc-setting-row {
+  min-width: 0;
+}
+.arc-pip-popover-grid select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 .arc-pip-meta-line {
   font-family: 'Nekst', 'Onest', sans-serif;

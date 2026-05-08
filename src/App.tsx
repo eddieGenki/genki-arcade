@@ -1748,14 +1748,6 @@ export default function App() {
             >
               <div className="arc-pip-popover-head">
                 <span className="arc-pip-meta-label">Input 2 — PiP</span>
-                {pipOn && pipActualSettings?.width && pipActualSettings?.height && (
-                  <span className="arc-pip-meta-line">
-                    {pipActualSettings.width}×{pipActualSettings.height}
-                    {pipActualSettings.frameRate
-                      ? ` · ${Math.round(pipActualSettings.frameRate)} fps`
-                      : ''}
-                  </span>
-                )}
               </div>
               <div className="arc-pip-popover-grid">
                 <SettingRow label={t.videoDevice}>
