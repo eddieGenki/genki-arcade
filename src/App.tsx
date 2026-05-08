@@ -1971,6 +1971,24 @@ const FAQ_SECTIONS: { title: string; body: React.ReactNode }[] = [
     ),
   },
   {
+    title: 'Streaming to Twitch / YouTube / X',
+    body: (
+      <p>
+        For streaming we recommend <strong>Camo Studio</strong> — our partner
+        for fast, friendly streaming. It picks up Genki Arcade as a source and
+        gets you on stream in seconds, with reliable performance across
+        Twitch, YouTube, and X.{' '}
+        <a
+          href="https://reincubate.com/camo/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Get Camo Studio →
+        </a>
+      </p>
+    ),
+  },
+  {
     title: 'Privacy',
     body: (
       <p>
