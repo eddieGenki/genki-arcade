@@ -1063,7 +1063,28 @@ input {
   text-align: center;
 }
 
-/* Webcam button live-meta readout — same hover-popover shell, text only */
+/* Webcam button mini-settings popover — extends the shared shell with a
+ * settings-style layout (header + dropdowns + swap button) instead of the
+ * tight inline shape used by the volume slider. */
+.arc-pip-popover {
+  width: 280px;
+  white-space: normal;
+  align-items: stretch;
+  padding: 12px;
+  gap: 10px;
+}
+.arc-pip-popover-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--arc-border);
+}
+.arc-pip-popover-grid {
+  display: grid;
+  gap: 10px;
+}
 .arc-pip-meta-line {
   font-family: 'Nekst', 'Onest', sans-serif;
   font-size: 11px;
@@ -1074,11 +1095,14 @@ input {
 }
 .arc-pip-meta-label {
   font-family: 'Nekst', 'Onest', sans-serif;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--arc-muted);
+}
+.arc-pip-popover .arc-swap {
+  margin: 4px 0 0;
 }
 
 .arc-rec-btn {

@@ -280,6 +280,11 @@ export default function App() {
   const [pipSize, setPipSize] = useState<{ w: number; h: number }>({ w: 256, h: 144 });
   const [pipActualSettings, setPipActualSettings] =
     useState<MediaTrackSettings | null>(null);
+  // PiP capture resolution / fps. Most webcams cap at 720p30; the start
+  // path falls back gracefully if the chosen combo isn't supported by the
+  // selected device.
+  const [pipResolution, setPipResolution] = useState<string>('1280x720');
+  const [pipFps, setPipFps] = useState<number>(30);
 
   // Live snapshot of visual settings, read by the recording RAF loop so
   // mid-recording toggles take effect without restarting the recorder.
@@ -723,14 +728,15 @@ export default function App() {
       return;
     }
     (async () => {
+      const [pw, ph] = pipResolution.split('x').map(Number);
+      const videoConstraints: MediaTrackConstraints = {
+        width: { ideal: pw },
+        height: { ideal: ph },
+        frameRate: { ideal: pipFps },
+      };
+      if (pipDeviceId) videoConstraints.deviceId = { exact: pipDeviceId };
       const constraints: MediaStreamConstraints = {
-        video: pipDeviceId
-          ? {
-              deviceId: { exact: pipDeviceId },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            }
-          : { width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: videoConstraints,
         audio: false,
       };
       const acquire = async () => navigator.mediaDevices.getUserMedia(constraints);
@@ -770,7 +776,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [pipOn, pipDeviceId]);
+  }, [pipOn, pipDeviceId, pipResolution, pipFps]);
 
   // Rebind the PiP stream when the <video> element is recreated. The PiP
   // markup lives behind `pipOn && running`, so when `start()` toggles
@@ -1580,48 +1586,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Swap inputs (only meaningful when both inputs are active) */}
-                {pipOn && (
-                  <button className="arc-swap" onClick={swapInputs} type="button">
-                    <Icon name="swap" size={14} />
-                    <span>Swap inputs</span>
-                  </button>
-                )}
-
-                {/* Input 2 — PiP */}
-                {pipOn && (
-                  <div className="arc-settings-section">
-                    <div className="arc-settings-section-title">
-                      Input 2 — PiP
-                      {pipActualSettings?.width && pipActualSettings?.height && (
-                        <span className="arc-settings-section-meta">
-                          {pipActualSettings.width}×{pipActualSettings.height}
-                          {pipActualSettings.frameRate
-                            ? ` · ${Math.round(pipActualSettings.frameRate)} fps`
-                            : ''}
-                        </span>
-                      )}
-                    </div>
-                    <div className="arc-settings-grid">
-                      <SettingRow label={t.videoDevice}>
-                        <select
-                          value={pipDeviceId}
-                          onChange={(e) => setPipDeviceId(e.target.value)}
-                        >
-                          <option value="">Default (built-in webcam)</option>
-                          {videoDevices
-                            .filter((d) => d.deviceId)
-                            .map((d) => (
-                              <option key={d.deviceId} value={d.deviceId}>
-                                {d.label}
-                              </option>
-                            ))}
-                        </select>
-                      </SettingRow>
-                    </div>
-                  </div>
-                )}
-
                 {/* Output / global audio routing */}
                 <div className="arc-settings-section">
                   <div className="arc-settings-section-title">Output</div>
@@ -1639,23 +1603,6 @@ export default function App() {
                         ))}
                       </select>
                     </SettingRow>
-                    {micOn && (
-                      <SettingRow label={t.micSource}>
-                        <select
-                          value={micDeviceId}
-                          onChange={(e) => setMicDeviceId(e.target.value)}
-                        >
-                          <option value="">Default (built-in mic)</option>
-                          {audioDevices
-                            .filter((d) => d.deviceId && d.deviceId !== audioDeviceId)
-                            .map((d) => (
-                              <option key={d.deviceId} value={d.deviceId}>
-                                {d.label}
-                              </option>
-                            ))}
-                        </select>
-                      </SettingRow>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1775,8 +1722,11 @@ export default function App() {
 
           <div className="arc-tools-divider" />
 
-          {/* PiP — separate group: webcam adds an entirely new stream / overlay */}
-          <div className="arc-tool-popover-wrap">
+          {/* PiP — separate group: webcam adds an entirely new stream / overlay.
+              The popover is the full PiP control surface (Input 2 home): video
+              source, mic source, resolution, framerate, swap. Settings popover
+              only handles main / Input 1. */}
+          <div className="arc-tool-popover-wrap arc-pip-wrap">
             <ToolBtn
               icon="webcam"
               label={t.webcamPip}
@@ -1791,20 +1741,89 @@ export default function App() {
               onTooltipEnter={onIconEnter}
               onTooltipLeave={onIconLeave}
             />
-            {/* Hover-popover: live PiP resolution + fps. Same shell as the
-                volume slider; only renders once the PiP track has actually
-                negotiated, otherwise hover would reveal an empty box. */}
-            {pipOn && pipActualSettings?.width && pipActualSettings?.height && (
-              <div className="arc-tool-popover" role="status" aria-live="polite">
-                <div className="arc-pip-meta-label">PiP</div>
-                <div className="arc-pip-meta-line">
-                  {pipActualSettings.width}×{pipActualSettings.height}
-                  {pipActualSettings.frameRate
-                    ? ` · ${Math.round(pipActualSettings.frameRate)} fps`
-                    : ''}
-                </div>
+            <div
+              className="arc-tool-popover arc-pip-popover"
+              role="group"
+              aria-label="PiP settings"
+            >
+              <div className="arc-pip-popover-head">
+                <span className="arc-pip-meta-label">Input 2 — PiP</span>
+                {pipOn && pipActualSettings?.width && pipActualSettings?.height && (
+                  <span className="arc-pip-meta-line">
+                    {pipActualSettings.width}×{pipActualSettings.height}
+                    {pipActualSettings.frameRate
+                      ? ` · ${Math.round(pipActualSettings.frameRate)} fps`
+                      : ''}
+                  </span>
+                )}
               </div>
-            )}
+              <div className="arc-pip-popover-grid">
+                <SettingRow label={t.videoDevice}>
+                  <select
+                    value={pipDeviceId}
+                    onChange={(e) => setPipDeviceId(e.target.value)}
+                  >
+                    <option value="">Default (built-in webcam)</option>
+                    {videoDevices
+                      .filter((d) => d.deviceId)
+                      .map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label}
+                        </option>
+                      ))}
+                  </select>
+                </SettingRow>
+                <SettingRow label={t.micSource}>
+                  <select
+                    value={micDeviceId}
+                    onChange={(e) => setMicDeviceId(e.target.value)}
+                  >
+                    <option value="">Default (built-in mic)</option>
+                    {audioDevices
+                      .filter((d) => d.deviceId && d.deviceId !== audioDeviceId)
+                      .map((d) => (
+                        <option key={d.deviceId} value={d.deviceId}>
+                          {d.label}
+                        </option>
+                      ))}
+                  </select>
+                </SettingRow>
+                <SettingRow label={t.resolution}>
+                  <select
+                    value={pipResolution}
+                    onChange={(e) => setPipResolution(e.target.value)}
+                  >
+                    {RESOLUTION_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </SettingRow>
+                <SettingRow label={t.frameRate}>
+                  <select
+                    value={pipFps}
+                    onChange={(e) => setPipFps(Number(e.target.value))}
+                  >
+                    {FPS_OPTIONS.map((f) => (
+                      <option key={f} value={f}>
+                        {f} fps
+                      </option>
+                    ))}
+                  </select>
+                </SettingRow>
+              </div>
+              {pipOn && (
+                <button
+                  className="arc-swap"
+                  onClick={swapInputs}
+                  type="button"
+                >
+                  <Icon name="swap" size={14} />
+                  <span>Swap inputs</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="arc-ticker-slot">{!running && <NewsTicker />}</div>
