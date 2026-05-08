@@ -73,6 +73,14 @@ const RESOLUTION_OPTIONS: Array<{ value: string; label: string }> = [
 
 const FPS_OPTIONS = [120, 60, 30];
 
+// ChromaCast™ — Genki MJPG color correction. Compensates for the
+// limited-range / desaturated look of MJPG-compressed capture. Applied as
+// a CSS filter so it composes cleanly with the user's image adjustments.
+// Tuned subtly here (about half the strength of the original 4K-upscaling
+// branch's contrast(1.12) saturate(1.20)) — it's a gentle nudge, not a
+// vivid-mode preset, since over-saturation has been a reported issue.
+const CHROMACAST_FILTER = 'contrast(1.06) saturate(1.08)';
+
 // Per-resolution upper bound on framerate that capture cards in 2026
 // commonly deliver. 4K@120 needs HDMI 2.1 capture (rare); 1440p@120 is also
 // edge-case. Conservative defaults — refine with per-device tables once we
@@ -114,6 +122,24 @@ export default function App() {
   // Monitoring volume — only affects what comes out of the speakers, not the
   // recorded mix (so a quiet headphone setting doesn't tank recording levels).
   const [volume, setVolume] = useState<number>(1);
+  // ChromaCast preference is persistent across sessions. Default OFF —
+  // users opt in if they want the MJPG-color-restore filter; this avoids
+  // double-saturating displays that already render the raw output vivid.
+  const [chromaCastEnabled, setChromaCastEnabledState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('arcadeChromaCast') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const setChromaCastEnabled = useCallback((on: boolean) => {
+    setChromaCastEnabledState(on);
+    try {
+      localStorage.setItem('arcadeChromaCast', String(on));
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // ---- Mic ---------------------------------------------------------------
   const [micOn, setMicOn] = useState<boolean>(false);
@@ -185,8 +211,8 @@ export default function App() {
     mirrored: false,
     pipOn: false,
     pipMirrored: true,
-    adjustmentsActive: false,
-    filterCss: 'none',
+    composedFilterActive: false,
+    composedFilter: 'none',
   });
 
   // -------------------------------------------------------------------------
@@ -468,8 +494,8 @@ export default function App() {
       mirrored,
       pipOn,
       pipMirrored,
-      adjustmentsActive,
-      filterCss,
+      composedFilterActive,
+      composedFilter,
     };
   });
 
@@ -636,8 +662,8 @@ export default function App() {
       mirrored: mFlag,
       pipOn: pFlag,
       pipMirrored: pmFlag,
-      adjustmentsActive: aFlag,
-      filterCss: fCss,
+      composedFilterActive: aFlag,
+      composedFilter: fCss,
     } = captureSettingsRef.current;
 
     if (canvas.width !== video.videoWidth) canvas.width = video.videoWidth;
@@ -907,6 +933,24 @@ export default function App() {
   const [reqW, reqH] = resolution.split('x').map(Number);
   const currentFormat = expectedFormat(actualW, actualH, actualFps);
 
+  // ChromaCast™ — gated to ShadowCast 3 specifically AND only meaningful in
+  // MJPG mode (the filter compensates for MJPG's color penalty; on
+  // uncompressed pixels it just oversaturates). Preference is preserved
+  // across device swaps and format changes; the filter just doesn't apply
+  // unless both conditions are met.
+  const chromaCastActive =
+    chromaCastEnabled && isShadowcast3 && currentFormat === 'mjpg';
+  // Composed filter chain — image adjustments (currently UI-hidden but the
+  // state machine still feeds them in) plus ChromaCast when active.
+  const composedFilter =
+    [
+      adjustmentsActive ? filterCss : '',
+      chromaCastActive ? CHROMACAST_FILTER : '',
+    ]
+      .filter(Boolean)
+      .join(' ') || 'none';
+  const composedFilterActive = adjustmentsActive || chromaCastActive;
+
   // Helpers to filter dropdowns to what the *current* main device actually
   // supports. Devices report `width.max`, `height.max`, `frameRate.max` via
   // getCapabilities(). When capabilities are unknown (idle state, or browser
@@ -1049,7 +1093,7 @@ export default function App() {
           className={`arc-video ${mirrored ? 'is-mirrored' : ''}`}
           style={{
             display: running ? 'block' : 'none',
-            filter: adjustmentsActive ? filterCss : undefined,
+            filter: composedFilterActive ? composedFilter : undefined,
           }}
         />
 
@@ -1203,6 +1247,35 @@ export default function App() {
                         </span>
                       )}
                     </div>
+
+                    {/* ChromaCast™ — only shown when the current combo is
+                        actually MJPG (the filter is a no-op on uncompressed
+                        and would only oversaturate). Selectable only with a
+                        ShadowCast 3 active; otherwise the row is dimmed and
+                        the checkbox disabled, so non-Genki users can still
+                        see the feature exists. Preference is persisted. */}
+                    {currentFormat === 'mjpg' && (
+                      <label
+                        className={`arc-chromacast-row ${
+                          !isShadowcast3 ? 'is-locked' : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={chromaCastEnabled}
+                          onChange={(e) => setChromaCastEnabled(e.target.checked)}
+                          disabled={!isShadowcast3}
+                        />
+                        <span className="arc-chromacast-text">
+                          <strong>ChromaCast™</strong>
+                          <span className="arc-chromacast-sub">
+                            {isShadowcast3
+                              ? 'Restore vivid colors in MJPG capture'
+                              : 'Restore vivid colors in MJPG capture — ShadowCast 3 required'}
+                          </span>
+                        </span>
+                      </label>
+                    )}
                   </div>
                 </div>
 
