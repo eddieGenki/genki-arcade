@@ -1519,7 +1519,7 @@ export default function App() {
           <div className="arc-tools-divider" />
 
           {/* Live-feed modifiers — affect what you see/hear right now */}
-          <div className="arc-audio-wrap">
+          <div className="arc-tool-popover-wrap">
             <ToolBtn
               icon="audio"
               label={t.audioPassthrough}
@@ -1529,7 +1529,7 @@ export default function App() {
               onTooltipLeave={onIconLeave}
             />
             <div
-              className="arc-volume-popover"
+              className="arc-tool-popover"
               role="group"
               aria-label="Monitor volume"
             >
@@ -1620,15 +1620,31 @@ export default function App() {
           <div className="arc-tools-divider" />
 
           {/* PiP — separate group: webcam adds an entirely new stream / overlay */}
-          <ToolBtn
-            icon="webcam"
-            label={t.webcamPip}
-            active={pipOn}
-            onClick={() => setPipOn((v) => !v)}
-            disabled={!running}
-            onTooltipEnter={onIconEnter}
-            onTooltipLeave={onIconLeave}
-          />
+          <div className="arc-tool-popover-wrap">
+            <ToolBtn
+              icon="webcam"
+              label={t.webcamPip}
+              active={pipOn}
+              onClick={() => setPipOn((v) => !v)}
+              disabled={!running}
+              onTooltipEnter={onIconEnter}
+              onTooltipLeave={onIconLeave}
+            />
+            {/* Hover-popover: live PiP resolution + fps. Same shell as the
+                volume slider; only renders once the PiP track has actually
+                negotiated, otherwise hover would reveal an empty box. */}
+            {pipOn && pipActualSettings?.width && pipActualSettings?.height && (
+              <div className="arc-tool-popover" role="status" aria-live="polite">
+                <div className="arc-pip-meta-label">PiP</div>
+                <div className="arc-pip-meta-line">
+                  {pipActualSettings.width}×{pipActualSettings.height}
+                  {pipActualSettings.frameRate
+                    ? ` · ${Math.round(pipActualSettings.frameRate)} fps`
+                    : ''}
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="arc-ticker-slot">{!running && <NewsTicker />}</div>
 
