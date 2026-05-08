@@ -606,6 +606,24 @@ input {
 }
 
 /* =========================================================================
+ * Build stamp — bottom-right corner of the stage when idle. Lets us verify
+ * exactly which deployment is being tested. Hidden once streaming starts.
+ * ===================================================================== */
+.arc-build-stamp {
+  position: absolute;
+  bottom: 12px;
+  right: 16px;
+  font-size: 10px;
+  font-family: 'Suisse Int\'l', 'Inter', system-ui, sans-serif;
+  color: var(--arc-muted);
+  letter-spacing: 0.04em;
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================================
  * News ticker — fills a slot to the right of the icon buttons, only
  * rendered when the app is idle (so live gameplay isn't visually distracted)
  * ===================================================================== */

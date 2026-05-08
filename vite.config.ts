@@ -7,7 +7,14 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 //   `npm run dev`            → HTTPS dev server (mkcert)
 //   `npm run build:single`   → emits a single self-contained index.html
 //                              you can double-click to open.
+//
+// __BUILD_TIME__ is replaced at build time with the ISO timestamp of when
+// `vite build` ran. Surfaces in the idle screen so we can verify which
+// deployment is being tested.
 export default defineConfig(({ mode }) => ({
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     ...(mode === 'single' ? [viteSingleFile()] : []),

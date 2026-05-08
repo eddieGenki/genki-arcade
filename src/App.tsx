@@ -1208,6 +1208,7 @@ export default function App() {
         {!running && (
           <IdleHero t={t} showUpsell={showUpsell} onDismissUpsell={dismissUpsell} />
         )}
+        {!running && <BuildStamp />}
 
         <video
           ref={videoRef}
@@ -1652,6 +1653,27 @@ export default function App() {
 // =============================================================================
 // Subcomponents
 // =============================================================================
+
+function BuildStamp() {
+  // Format the build-time ISO into "May 8, 2026 · 4:32 PM" in user-local time.
+  // The user can quickly verify which deployment they're poking at by
+  // glancing at the idle screen.
+  let label = 'Build unknown';
+  try {
+    const d = new Date(__BUILD_TIME__);
+    label = d.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    /* ignore */
+  }
+  return <div className="arc-build-stamp">Build · {label}</div>;
+}
 
 function NewsTicker() {
   // Random order per visit so visitors don't always see the same first item.
