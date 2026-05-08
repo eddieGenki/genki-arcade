@@ -128,16 +128,11 @@ export const NEWS_ITEMS: NewsItem[] = [
     text: "shipping records show 15K+ unmarked consoles arriving at Valve warehouses. SteamOS 3.8.0 slipped in 'Steam Machine' references. the long con may finally be ending 🕵️",
   },
 
-  // ── Community / viral (2) ────────────────────────────────────────────
+  // ── Industry / community (1) ─────────────────────────────────────────
   {
-    id: 'minecraft-saved-tweet',
-    headline: { label: 'minecraft has been saved' },
-    text: "viral on X. zero context, 2.5K likes, Mojang silent. the internet is unwell 🟫",
-  },
-  {
-    id: 'smash-ai-port-drama',
-    headline: { label: 'Smash PC port · 100% AI-generated' },
-    text: "r/gaming is filing for emotional damages. 'is it a port if no human touched the code?' 🤖",
+    id: 'gamestop-ebay-bid',
+    headline: { label: 'GameStop CEO banned from eBay' },
+    text: "Ryan Cohen reportedly wants to acquire eBay. eBay's response: ban his account. mid-acquisition, mid-tweet, nothing about this is normal corporate finance 📦",
   },
 ];
 
