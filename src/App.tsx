@@ -35,6 +35,20 @@ function pickShadowcast(devices: DeviceInfo[]): DeviceInfo | undefined {
   );
 }
 
+// Initial fps default per detected ShadowCast model. Tested most-specific
+// first so SC2 Pro doesn't get matched as plain SC2. Returns null for
+// non-Genki / unknown labels so the caller can leave the user's existing
+// default in place.
+function defaultFpsForLabel(label: string | undefined): number | null {
+  if (!label) return null;
+  const l = label.toLowerCase();
+  if (/shadowcast\s*3/.test(l)) return 120;
+  if (/shadowcast\s*2\s*pro/.test(l)) return 120;
+  if (/shadowcast\s*2/.test(l)) return 60;
+  if (/shadowcast/.test(l)) return 30;
+  return null;
+}
+
 // Predict whether a given resolution + framerate combo will be delivered
 // uncompressed (YUY2/NV12, ~16 bits per pixel) or compressed in MJPG.
 // Heuristic: if uncompressed bandwidth exceeds ~4 Gbps (the practical USB 3.0
@@ -222,6 +236,11 @@ export default function App() {
   // reads from it instead of the raw <video> when upscaleOn is true so
   // recordings and screenshots capture the sharpened output.
   const upscaleCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // One-shot guard so we set fps from the detected ShadowCast model exactly
+  // once per session. After the first auto-pick, subsequent refreshDevices
+  // calls (devicechange events, swap inputs, etc.) leave the user's choice
+  // alone.
+  const fpsAutoConfiguredRef = useRef<boolean>(false);
 
   // Session-level analytics counters. Reset at session_started, summed up
   // and reported at session_ended. Refs (not state) since they don't drive
@@ -241,40 +260,21 @@ export default function App() {
   const [faqOpen, setFaqOpen] = useState<boolean>(false);
   const [tooltip, setTooltip] = useState<{ label: string; cx: number; ty: number } | null>(null);
 
-  // ShadowCast 3 upsell — dismiss persists in localStorage.
-  const [upsellDismissed, setUpsellDismissedState] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('arcadeUpsellDismissed') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  // ShadowCast 3 upsell — session-only dismissal. Every reload brings it
+  // back so returning users can't permanently lose visibility on hardware
+  // upgrades; if they don't want it, they can just close it for now.
+  const [upsellDismissed, setUpsellDismissed] = useState<boolean>(false);
   const dismissUpsell = useCallback(() => {
-    setUpsellDismissedState(true);
+    setUpsellDismissed(true);
     analytics.upsellDismissed();
-    try {
-      localStorage.setItem('arcadeUpsellDismissed', 'true');
-    } catch {
-      /* ignore */
-    }
   }, []);
 
-  // News ticker can be dismissed by the user — useful when the typewriter
-  // animation is distracting during a run. Persists across reloads.
-  const [tickerDismissed, setTickerDismissedState] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('arcadeTickerDismissed') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  // News ticker — session-only dismissal too. The rotating chatter is part
+  // of the vibe and we want fresh visitors to discover it; if it's noisy
+  // mid-session you can close it, but it'll be back next reload.
+  const [tickerDismissed, setTickerDismissed] = useState<boolean>(false);
   const dismissTicker = useCallback(() => {
-    setTickerDismissedState(true);
-    try {
-      localStorage.setItem('arcadeTickerDismissed', 'true');
-    } catch {
-      /* ignore */
-    }
+    setTickerDismissed(true);
   }, []);
 
   // ---- Image adjustments (state only — UI hidden in this design pass) -----
@@ -359,6 +359,18 @@ export default function App() {
     // Auto-select ShadowCast when possible.
     setVideoDeviceId((cur) => cur || pickShadowcast(vids)?.deviceId || vids[0]?.deviceId || '');
     setAudioDeviceId((cur) => cur || pickShadowcast(mics)?.deviceId || mics[0]?.deviceId || '');
+
+    // Set the framerate to a model-appropriate default the first time we
+    // see a ShadowCast — SC3 / SC2 Pro can do 120, SC2 caps at 60, the
+    // original SC tops out at 30. Only fires once so manual changes stick.
+    if (!fpsAutoConfiguredRef.current) {
+      const sc = pickShadowcast(vids);
+      const target = defaultFpsForLabel(sc?.label);
+      if (target !== null) {
+        setFps(target);
+        fpsAutoConfiguredRef.current = true;
+      }
+    }
   }, []);
 
   const requestInitialPermission = useCallback(async () => {
@@ -2160,7 +2172,19 @@ function NewsTicker() {
       className={`arc-ticker ${phase === 'fading' ? 'is-fading' : ''}`}
       aria-live="polite"
     >
-      {item.username && <span className="arc-ticker-user">@{item.username}</span>}
+      {item.headline &&
+        (item.headline.href ? (
+          <a
+            className="arc-ticker-user"
+            href={item.headline.href}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            @{item.headline.label}
+          </a>
+        ) : (
+          <span className="arc-ticker-user">@{item.headline.label}</span>
+        ))}
       <span className="arc-ticker-text">
         {typed}
         {phase === 'typing' && <span className="arc-ticker-cursor">▍</span>}

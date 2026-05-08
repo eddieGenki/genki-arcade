@@ -824,6 +824,13 @@ input {
   color: var(--teal);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+a.arc-ticker-user {
+  cursor: pointer;
+}
+a.arc-ticker-user:hover {
+  text-decoration: underline;
 }
 
 .arc-ticker-text {
