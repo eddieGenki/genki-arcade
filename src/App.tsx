@@ -5,6 +5,7 @@ import { Icon } from './icons';
 import { pickLanguage, useTranslation } from './i18n';
 import { NEWS_ITEMS, shuffled } from './news';
 import { UpscaleCanvas } from './upscaler';
+import { analytics } from './analytics';
 
 type DeviceInfo = { deviceId: string; label: string };
 
@@ -187,6 +188,7 @@ export default function App() {
   });
   const setChromaCastEnabled = useCallback((on: boolean) => {
     setChromaCastEnabledState(on);
+    analytics.toggle('chromacast', on);
     try {
       localStorage.setItem('arcadeChromaCast', String(on));
     } catch {
@@ -220,6 +222,15 @@ export default function App() {
   // reads from it instead of the raw <video> when upscaleOn is true so
   // recordings and screenshots capture the sharpened output.
   const upscaleCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Session-level analytics counters. Reset at session_started, summed up
+  // and reported at session_ended. Refs (not state) since they don't drive
+  // any UI and we want zero-cost increments inside hot paths.
+  const sessionStartMsRef = useRef<number | null>(null);
+  const sessionScreenshotsRef = useRef<number>(0);
+  const sessionRecordingsRef = useRef<number>(0);
+  const recordingStartMsRef = useRef<number | null>(null);
+  const lastReportedConfigRef = useRef<string>('');
   const recordingRafRef = useRef<number>(0);
   const [recording, setRecording] = useState<boolean>(false);
   const [recElapsed, setRecElapsed] = useState<number>(0);
@@ -240,6 +251,7 @@ export default function App() {
   });
   const dismissUpsell = useCallback(() => {
     setUpsellDismissedState(true);
+    analytics.upsellDismissed();
     try {
       localStorage.setItem('arcadeUpsellDismissed', 'true');
     } catch {
@@ -403,7 +415,17 @@ export default function App() {
       // shows the bandwidth prediction until this resolves. No-op on browsers
       // that don't implement MediaStreamTrackProcessor.
       setDecodedFormat(null);
-      probeDecodedFormat(vTrack).then(setDecodedFormat);
+      probeDecodedFormat(vTrack).then((format) => {
+        setDecodedFormat(format);
+        const bucket = formatFromDecoded(format);
+        if (format && bucket) {
+          analytics.formatDetected({
+            device: vTrack.label,
+            decoded: format,
+            bucket,
+          });
+        }
+      });
 
       // Audio graph: always-on so mic + game audio can mix into one stream.
       const ctx = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
@@ -469,8 +491,38 @@ export default function App() {
       }
 
       setRunning(true);
+
+      // Analytics: session_started fires once per session (until session_ended).
+      // stream_config fires every time we successfully (re-)acquire a stream,
+      // so device / resolution / fps changes show up as separate events.
+      const formatGuess = expectedFormat(w, h, fps);
+      if (sessionStartMsRef.current === null) {
+        sessionStartMsRef.current = Date.now();
+        sessionRecordingsRef.current = 0;
+        sessionScreenshotsRef.current = 0;
+        analytics.sessionStarted({
+          device: vTrack.label,
+          resolution,
+          fps,
+          format: formatGuess,
+        });
+      }
+      // De-dupe stream_config across the rapid re-renders that can fire
+      // back-to-back when multiple state values change in one user action.
+      const cfgKey = `${vTrack.label}|${resolution}|${fps}|${formatGuess}`;
+      if (lastReportedConfigRef.current !== cfgKey) {
+        lastReportedConfigRef.current = cfgKey;
+        analytics.streamConfig({
+          device: vTrack.label,
+          resolution,
+          fps,
+          format: formatGuess,
+        });
+      }
     } catch (e) {
-      setError(`Start failed: ${(e as Error).message}`);
+      const msg = (e as Error).message;
+      setError(`Start failed: ${msg}`);
+      analytics.errorOccurred(`start_failed: ${msg}`);
       stopStreams();
     }
   }, [resolution, fps, videoDeviceId, audioDeviceId, outputDeviceId, audioOn, stopStreams]);
@@ -558,6 +610,78 @@ export default function App() {
   }, [resolution, fps, running]);
 
   useEffect(() => () => stopStreams(), [stopStreams]);
+
+  // Konami-style chord that opens the shared analytics URL in a new tab.
+  // Sequence: ↑ ↑ ↓ ↓ ← → ← → g e n k i. Resets on any wrong key. Skipped
+  // entirely while focus is on a form input so we don't steal their typing.
+  useEffect(() => {
+    const SEQUENCE = [
+      'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown',
+      'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight',
+      'g', 'e', 'n', 'k', 'i',
+    ];
+    let pos = 0;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+      const expected = SEQUENCE[pos];
+      const got = expected.length === 1 ? e.key.toLowerCase() : e.key;
+      const want = expected.length === 1 ? expected.toLowerCase() : expected;
+      if (got === want) {
+        pos += 1;
+        if (pos === SEQUENCE.length) {
+          pos = 0;
+          const url = import.meta.env.VITE_ANALYTICS_URL as string | undefined;
+          if (url) window.open(url, '_blank', 'noopener,noreferrer');
+          else
+            console.info(
+              'Konami unlocked, but VITE_ANALYTICS_URL is not set. Configure it in your Vercel project env to enable.',
+            );
+        }
+      } else {
+        // Allow the wrong key to also be the start of a fresh attempt
+        pos = got === SEQUENCE[0].toLowerCase() ? 1 : 0;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Explicit session end — wraps stopStreams with a session_ended event so
+  // device-change restarts (which also call stopStreams) don't pollute the
+  // analytics with bogus session boundaries. The End button + pagehide
+  // listener are the only places that should fire this.
+  const reportAndClearSession = useCallback(() => {
+    const startMs = sessionStartMsRef.current;
+    if (startMs === null) return;
+    const label =
+      videoStreamRef.current?.getVideoTracks()[0]?.label ||
+      videoDevices.find((d) => d.deviceId === videoDeviceId)?.label;
+    analytics.sessionEnded({
+      device: label,
+      duration_s: (Date.now() - startMs) / 1000,
+      recordings: sessionRecordingsRef.current,
+      screenshots: sessionScreenshotsRef.current,
+    });
+    sessionStartMsRef.current = null;
+    sessionRecordingsRef.current = 0;
+    sessionScreenshotsRef.current = 0;
+    lastReportedConfigRef.current = '';
+  }, [videoDevices, videoDeviceId]);
+
+  const endSession = useCallback(() => {
+    reportAndClearSession();
+    stopStreams();
+  }, [reportAndClearSession, stopStreams]);
+
+  // Tab close / navigation: fire session_ended once. Analytics uses
+  // sendBeacon under the hood so this survives page teardown.
+  useEffect(() => {
+    const onHide = () => reportAndClearSession();
+    window.addEventListener('pagehide', onHide);
+    return () => window.removeEventListener('pagehide', onHide);
+  }, [reportAndClearSession]);
 
   // Live re-route audio output when the user picks a different sink mid-stream
   // (previously this only applied at start time). HTMLAudioElement.setSinkId
@@ -859,6 +983,8 @@ export default function App() {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }, 'image/png');
+    sessionScreenshotsRef.current += 1;
+    analytics.screenshotTaken();
   }, [drawComposite]);
 
   // -------------------------------------------------------------------------
@@ -938,6 +1064,8 @@ export default function App() {
     recorderRef.current = recorder;
     setRecording(true);
     setRecElapsed(0);
+    recordingStartMsRef.current = Date.now();
+    sessionRecordingsRef.current += 1;
   }, [fps, drawComposite]);
 
   const stopRecording = useCallback(() => {
@@ -947,6 +1075,12 @@ export default function App() {
     recorderRef.current = null;
     setRecording(false);
     setRecElapsed(0);
+    if (recordingStartMsRef.current !== null) {
+      analytics.recordingCompleted({
+        duration_s: (Date.now() - recordingStartMsRef.current) / 1000,
+      });
+      recordingStartMsRef.current = null;
+    }
   }, []);
 
   // Recording timer
@@ -1209,7 +1343,7 @@ export default function App() {
           </button>
         )}
         {running && (
-          <button className="arc-session is-end" onClick={stopStreams} type="button">
+          <button className="arc-session is-end" onClick={endSession} type="button">
             <Icon name="close" size={14} />
             <span>{t.end}</span>
           </button>
@@ -1588,7 +1722,12 @@ export default function App() {
                 onBlur={onIconLeave}
                 onClick={() => {
                   onIconLeave();
-                  if (running && upscaleAvailable) setUpscaleOn((v) => !v);
+                  if (running && upscaleAvailable) {
+                    setUpscaleOn((v) => {
+                      analytics.toggle('upscale', !v);
+                      return !v;
+                    });
+                  }
                 }}
                 disabled={!running}
                 aria-label={upscaleLabel}
@@ -1623,7 +1762,12 @@ export default function App() {
             icon="mic"
             label={t.recordMic}
             active={micOn}
-            onClick={() => setMicOn((v) => !v)}
+            onClick={() => {
+              setMicOn((v) => {
+                analytics.toggle('mic', !v);
+                return !v;
+              });
+            }}
             disabled={!running}
             onTooltipEnter={onIconEnter}
             onTooltipLeave={onIconLeave}
@@ -1637,7 +1781,12 @@ export default function App() {
               icon="webcam"
               label={t.webcamPip}
               active={pipOn}
-              onClick={() => setPipOn((v) => !v)}
+              onClick={() => {
+                setPipOn((v) => {
+                  analytics.toggle('pip', !v);
+                  return !v;
+                });
+              }}
               disabled={!running}
               onTooltipEnter={onIconEnter}
               onTooltipLeave={onIconLeave}
@@ -2053,6 +2202,7 @@ function UpsellCard({ t, onDismiss }: { t: ReturnType<typeof useTranslation>; on
           href={SHOPIFY_SHADOWCAST3_URL}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => analytics.upsellClicked()}
         >
           <span>{t.upsellCta}</span>
           <Icon name="arrow" size={13} />
