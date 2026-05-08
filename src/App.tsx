@@ -1971,16 +1971,6 @@ const FAQ_SECTIONS: { title: string; body: React.ReactNode }[] = [
     ),
   },
   {
-    title: 'Streaming to Twitch / YouTube / X',
-    body: (
-      <p>
-        Not directly built in yet. The cleanest workaround is OBS: add{' '}
-        <strong>arcade.genkithings.com</strong> as a Browser Source (or window
-        capture) and stream from there. Your existing OBS scenes still work.
-      </p>
-    ),
-  },
-  {
     title: 'Privacy',
     body: (
       <p>
