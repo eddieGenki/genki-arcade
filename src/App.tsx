@@ -1040,14 +1040,20 @@ export default function App() {
   const actualFps = actualSettings?.frameRate
     ? Math.round(actualSettings.frameRate)
     : fps;
-  const resolutionShort = (() => {
-    if (actualW >= 3840 || actualH >= 2160) return '4K';
-    if (actualH >= 1440) return '1440p';
-    if (actualH >= 1080) return '1080p';
-    if (actualH >= 720) return '720p';
-    if (actualH >= 480) return '480p';
-    return `${actualW}×${actualH}`;
-  })();
+  const shortRes = (w: number, h: number): string => {
+    if (w >= 7680 || h >= 4320) return '8K';
+    if (w >= 3840 || h >= 2160) return '4K';
+    if (h >= 1440) return '1440p';
+    if (h >= 1080) return '1080p';
+    if (h >= 720) return '720p';
+    if (h >= 480) return '480p';
+    return `${w}×${h}`;
+  };
+  const resolutionShort = shortRes(actualW, actualH);
+  // Upscaler runs at 2× source. When it's active, the label shows source
+  // → upscaled output so the user can see what they're actually viewing
+  // (and what their recordings/screenshots will be captured at).
+  const upscaledShort = upscaleOn ? shortRes(actualW * 2, actualH * 2) : null;
 
   // Format detection. Prefer the live VideoFrame probe (authoritative), else
   // fall back to bandwidth prediction. The probe is async and may take a
@@ -1153,7 +1159,10 @@ export default function App() {
               {t.live}
               {activeVideoLabel && (
                 <span className="arc-pill-meta">
-                  · {activeVideoLabel} · {resolutionShort} · {actualFps} fps
+                  · {activeVideoLabel} · {resolutionShort}
+                  {upscaledShort && (
+                    <span className="arc-pill-upscale"> → {upscaledShort}</span>
+                  )} · {actualFps} fps
                 </span>
               )}
             </span>
@@ -1165,7 +1174,10 @@ export default function App() {
               <span className="arc-rec-time">{fmtTime(recElapsed)}</span>
               {activeVideoLabel && (
                 <span className="arc-pill-meta">
-                  · {activeVideoLabel} · {resolutionShort} · {actualFps} fps
+                  · {activeVideoLabel} · {resolutionShort}
+                  {upscaledShort && (
+                    <span className="arc-pill-upscale"> → {upscaledShort}</span>
+                  )} · {actualFps} fps
                 </span>
               )}
             </span>
