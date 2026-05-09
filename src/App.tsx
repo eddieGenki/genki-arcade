@@ -309,7 +309,7 @@ export default function App() {
     (preset: 'reset' | 'vivid' | 'cinematic') => {
       const values =
         preset === 'vivid'
-          ? { b: 1, c: 1.1, s: 1.2 }
+          ? { b: 1, c: 1.2, s: 1 }
           : preset === 'cinematic'
             ? { b: 0.95, c: 1.15, s: 0.85 }
             : { b: 1, c: 1, s: 1 };
@@ -1600,9 +1600,9 @@ export default function App() {
                   <span className="arc-eyebrow">{t.settings}</span>
                 </div>
 
-                {/* Input 1 — Main */}
+                {/* Main input — primary capture device */}
                 <div className="arc-settings-section">
-                  <div className="arc-settings-section-title">Input 1 — Main</div>
+                  <div className="arc-settings-section-title">Main Input</div>
                   <div className="arc-settings-grid">
                     <SettingRow label={t.videoDevice}>
                       <select
@@ -1697,21 +1697,21 @@ export default function App() {
                       label="Brightness"
                       value={brightness}
                       onChange={setBrightness}
-                      min={0.7}
-                      max={1.3}
+                      min={0.5}
+                      max={1.5}
                     />
                     <ColorSlider
                       label="Contrast"
                       value={contrast}
                       onChange={setContrast}
-                      min={0.7}
-                      max={1.3}
+                      min={0.5}
+                      max={1.5}
                     />
                     <ColorSlider
                       label="Saturation"
                       value={saturation}
                       onChange={setSaturation}
-                      min={0}
+                      min={0.5}
                       max={1.5}
                     />
                   </div>
@@ -1915,7 +1915,7 @@ export default function App() {
               aria-label="PiP settings"
             >
               <div className="arc-pip-popover-head">
-                <span className="arc-pip-meta-label">Input 2 — PiP</span>
+                <span className="arc-pip-meta-label">PiP Input</span>
               </div>
               <div className="arc-pip-popover-grid">
                 <SettingRow label={t.videoDevice}>
