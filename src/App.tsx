@@ -919,20 +919,36 @@ export default function App() {
   const onPipMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     const stage = stageRef.current;
+    const video = videoRef.current;
     const pip = e.currentTarget;
     if (!stage) return;
     const stageRect = stage.getBoundingClientRect();
     const pipRect = pip.getBoundingClientRect();
     const offsetX = e.clientX - pipRect.left;
     const offsetY = e.clientY - pipRect.top;
+    // Clamp to the displayed video rect (not the stage) so the user can't
+    // drag PiP into the letterbox bars when source aspect ≠ stage aspect.
+    // Falls back to the full stage if video isn't ready yet — that just
+    // gives the previous (over-permissive) behavior pre-stream rather than
+    // freezing the drag.
+    const disp = video?.videoWidth
+      ? getDisplayedVideoRect(
+          video.videoWidth,
+          video.videoHeight,
+          stage.clientWidth,
+          stage.clientHeight,
+        )
+      : { x: 0, y: 0, w: stage.clientWidth, h: stage.clientHeight };
     const onMove = (ev: MouseEvent) => {
       const x = ev.clientX - stageRect.left - offsetX;
       const y = ev.clientY - stageRect.top - offsetY;
-      const maxX = stageRect.width - pipRect.width;
-      const maxY = stageRect.height - pipRect.height;
+      const minX = disp.x;
+      const minY = disp.y;
+      const maxX = disp.x + disp.w - pipRect.width;
+      const maxY = disp.y + disp.h - pipRect.height;
       setPipPos({
-        x: Math.max(0, Math.min(maxX, x)),
-        y: Math.max(0, Math.min(maxY, y)),
+        x: Math.max(minX, Math.min(maxX, x)),
+        y: Math.max(minY, Math.min(maxY, y)),
       });
     };
     const onUp = () => {
