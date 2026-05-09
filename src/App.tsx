@@ -1909,6 +1909,7 @@ export default function App() {
               onTooltipEnter={onIconEnter}
               onTooltipLeave={onIconLeave}
             />
+            {pipOn && (
             <div
               className="arc-tool-popover arc-pip-popover"
               role="group"
@@ -1973,17 +1974,16 @@ export default function App() {
                   </select>
                 </SettingRow>
               </div>
-              {pipOn && (
-                <button
-                  className="arc-swap"
-                  onClick={swapInputs}
-                  type="button"
-                >
-                  <Icon name="swap" size={14} />
-                  <span>Swap inputs</span>
-                </button>
-              )}
+              <button
+                className="arc-swap"
+                onClick={swapInputs}
+                type="button"
+              >
+                <Icon name="swap" size={14} />
+                <span>Swap inputs</span>
+              </button>
             </div>
+            )}
           </div>
 
           <div className="arc-ticker-slot">
