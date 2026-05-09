@@ -1319,6 +1319,114 @@ export default function App() {
   useEffect(() => {
     if (upscaleOn && !isShadowcastActive) setUpscaleOn(false);
   }, [upscaleOn, isShadowcastActive]);
+
+  // Single-key shortcuts for the dock buttons. Fires only when the app is
+  // running (except for `,` which works idle so users can pre-configure),
+  // no input is focused, and no modifier key is held — so Cmd+S still
+  // saves the page, etc. Tooltips show the assigned letter via ToolBtn's
+  // `shortcut` prop. Conflicts with the Konami chord on individual letters
+  // (e.g. typing "genki" toggles Enhance + Mic en route) are accepted —
+  // the chord is rare enough that the cosmetic side effect doesn't matter.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target?.isContentEditable
+      )
+        return;
+      const k = e.key.toLowerCase();
+
+      if (k === ',') {
+        e.preventDefault();
+        setSettingsOpen((o) => !o);
+        return;
+      }
+
+      if (!running) return;
+
+      switch (k) {
+        case 's':
+          e.preventDefault();
+          takeScreenshot();
+          break;
+        case 'r':
+          e.preventDefault();
+          if (recording) stopRecording();
+          else startRecording();
+          break;
+        case 'f':
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'm':
+          e.preventDefault();
+          setMirrored((v) => !v);
+          break;
+        case 'a':
+          e.preventDefault();
+          setAudioOn((v) => !v);
+          break;
+        case 'e':
+          if (isShadowcastActive) {
+            e.preventDefault();
+            setUpscaleOn((v) => {
+              const next = !v;
+              analytics.toggle('upscale', next);
+              if (next && crtOn) {
+                setCrtOn(false);
+                analytics.toggle('crt', false);
+              }
+              return next;
+            });
+          }
+          break;
+        case 'c':
+          e.preventDefault();
+          setCrtOn((v) => {
+            const next = !v;
+            analytics.toggle('crt', next);
+            if (next && upscaleOn) {
+              setUpscaleOn(false);
+              analytics.toggle('upscale', false);
+            }
+            return next;
+          });
+          break;
+        case 'p':
+          e.preventDefault();
+          setPipOn((v) => {
+            analytics.toggle('pip', !v);
+            return !v;
+          });
+          break;
+        case 'k':
+          e.preventDefault();
+          setMicOn((v) => {
+            analytics.toggle('mic', !v);
+            return !v;
+          });
+          break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [
+    running,
+    recording,
+    isShadowcastActive,
+    upscaleOn,
+    crtOn,
+    takeScreenshot,
+    startRecording,
+    stopRecording,
+    toggleFullscreen,
+  ]);
+
   const isShadowcast3 =
     SHADOWCAST3_HINT.test(activeVideoLabel) || SHADOWCAST3_HINT.test(activeAudioLabel);
   const showUpsell = !upsellDismissed && (!labelsKnown || !isShadowcast3);
@@ -1617,6 +1725,7 @@ export default function App() {
             <ToolBtn
               icon="settings"
               label={t.settings}
+              shortcut=","
               active={settingsOpen}
               onClick={() => setSettingsOpen((o) => !o)}
               onTooltipEnter={onIconEnter}
@@ -1775,6 +1884,7 @@ export default function App() {
             <ToolBtn
               icon="audio"
               label={t.audioPassthrough}
+              shortcut="A"
               active={audioOn}
               onClick={() => setAudioOn((v) => !v)}
               onTooltipEnter={onIconEnter}
@@ -1802,6 +1912,7 @@ export default function App() {
           <ToolBtn
             icon="mirror"
             label={t.mirror}
+            shortcut="M"
             active={mirrored}
             onClick={() => setMirrored((v) => !v)}
             onTooltipEnter={onIconEnter}
@@ -1815,7 +1926,7 @@ export default function App() {
           {(() => {
             const upscaleAvailable = isShadowcastActive;
             const upscaleLabel = upscaleAvailable
-              ? '4K upscaling'
+              ? '4K upscaling · E'
               : '4K upscaling — ShadowCast required';
             return (
               <button
@@ -1857,9 +1968,9 @@ export default function App() {
               feature). Mutually exclusive with Enhance. */}
           <button
             className={`arc-tool ${crtOn ? 'is-active' : ''}`}
-            onMouseEnter={onIconEnter('CRT mode')}
+            onMouseEnter={onIconEnter('CRT mode · C')}
             onMouseLeave={onIconLeave}
-            onFocus={onIconEnter('CRT mode')}
+            onFocus={onIconEnter('CRT mode · C')}
             onBlur={onIconLeave}
             onClick={() => {
               onIconLeave();
@@ -1887,6 +1998,7 @@ export default function App() {
           <ToolBtn
             icon="snapshot"
             label={t.snapshot}
+            shortcut="S"
             onClick={takeScreenshot}
             disabled={!running}
             onTooltipEnter={onIconEnter}
@@ -1895,6 +2007,7 @@ export default function App() {
           <ToolBtn
             icon={recording ? 'stop' : 'record'}
             label={recording ? t.stop : t.record}
+            shortcut="R"
             active={recording}
             onClick={() => (recording ? stopRecording() : startRecording())}
             disabled={!running}
@@ -1904,6 +2017,7 @@ export default function App() {
           <ToolBtn
             icon="mic"
             label={t.recordMic}
+            shortcut="K"
             active={micOn}
             onClick={() => {
               setMicOn((v) => {
@@ -1926,6 +2040,7 @@ export default function App() {
             <ToolBtn
               icon="webcam"
               label={t.webcamPip}
+              shortcut="P"
               active={pipOn}
               onClick={() => {
                 setPipOn((v) => {
@@ -2034,6 +2149,7 @@ export default function App() {
           <ToolBtn
             icon="fullscreen"
             label={isFullscreen ? `Exit ${t.fullscreen.toLowerCase()}` : t.fullscreen}
+            shortcut="F"
             onClick={toggleFullscreen}
             disabled={!running}
             onTooltipEnter={onIconEnter}
@@ -2401,6 +2517,10 @@ type ToolBtnProps = {
   onTooltipEnter?: (label: string) => (e: React.MouseEvent | React.FocusEvent) => void;
   onTooltipLeave?: () => void;
   disabled?: boolean;
+  /** Optional keyboard shortcut letter — appended to the tooltip label as
+   * "Snapshot · S". Doesn't actually wire the shortcut here; the app-level
+   * listener handles dispatch. This is purely the visible affordance. */
+  shortcut?: string;
 };
 
 // Top-level so React doesn't re-create the component type on every parent
@@ -2415,8 +2535,10 @@ function ToolBtn({
   onTooltipEnter,
   onTooltipLeave,
   disabled,
+  shortcut,
 }: ToolBtnProps) {
-  const enterHandler = onTooltipEnter ? onTooltipEnter(label) : undefined;
+  const tipLabel = shortcut ? `${label} · ${shortcut}` : label;
+  const enterHandler = onTooltipEnter ? onTooltipEnter(tipLabel) : undefined;
   return (
     <button
       className={`arc-tool ${active ? 'is-active' : ''}`}
