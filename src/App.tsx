@@ -12,7 +12,12 @@ type DeviceInfo = { deviceId: string; label: string };
 
 const SHADOWCAST_HINTS = ['shadowcast', 'shadow cast', 'genki'];
 const SHADOWCAST3_HINT = /shadowcast\s*3/i;
-const SHOPIFY_SHADOWCAST3_URL = 'https://www.genkithings.com/products/shadowcast-3-pro';
+// UTM-tagged so Shopify attributes orders back to the arcade app. View
+// in Shopify Admin → Analytics → "Sales attributed to marketing" or
+// "Top traffic sources." utm_medium=upsell distinguishes this surface
+// from the news-ticker links (utm_medium=ticker).
+const SHOPIFY_SHADOWCAST3_URL =
+  'https://www.genkithings.com/products/shadowcast-3-pro?utm_source=arcade&utm_medium=upsell&utm_campaign=arcade-app';
 
 function isGenkiDevice(label: string | undefined): boolean {
   if (!label) return false;

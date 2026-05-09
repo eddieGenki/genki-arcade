@@ -26,11 +26,11 @@ export const NEWS_ITEMS: NewsItem[] = [
     id: 'covert-dock-3',
     headline: {
       label: 'Covert Dock 3 sold out',
-      href: 'https://www.genkithings.com/products/covert-dock-3',
+      href: 'https://www.genkithings.com/products/covert-dock-3?utm_source=arcade&utm_medium=ticker&utm_campaign=arcade-app',
     },
     text: 'in 2 weeks 🫠 restock landing mid-June. backorder now to skip the line.',
     link: {
-      href: 'https://www.genkithings.com/products/covert-dock-3',
+      href: 'https://www.genkithings.com/products/covert-dock-3?utm_source=arcade&utm_medium=ticker&utm_campaign=arcade-app',
       label: 'Backorder yours',
     },
   },
@@ -38,11 +38,11 @@ export const NEWS_ITEMS: NewsItem[] = [
     id: 'genki-grips',
     headline: {
       label: 'Genki Grips · new colorways',
-      href: 'https://www.kickstarter.com/projects/humanthings/genkigrips',
+      href: 'https://www.kickstarter.com/projects/humanthings/genkigrips?utm_source=arcade&utm_medium=ticker&utm_campaign=arcade-app',
     },
     text: 'late pledges are live on Kickstarter — get in before shipping.',
     link: {
-      href: 'https://www.kickstarter.com/projects/humanthings/genkigrips',
+      href: 'https://www.kickstarter.com/projects/humanthings/genkigrips?utm_source=arcade&utm_medium=ticker&utm_campaign=arcade-app',
       label: 'Pledge on Kickstarter',
     },
   },
