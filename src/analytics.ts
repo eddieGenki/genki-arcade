@@ -114,7 +114,7 @@ export const analytics = {
     track('screenshot_taken');
   },
 
-  toggle(name: 'pip' | 'upscale' | 'chromacast' | 'mic', on: boolean) {
+  toggle(name: 'pip' | 'upscale' | 'crt' | 'chromacast' | 'mic', on: boolean) {
     track('toggle', { feature: name, on });
   },
 

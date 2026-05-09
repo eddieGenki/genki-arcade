@@ -26,7 +26,8 @@ type IconName =
   | 'chevron'
   | 'image'
   | 'swap'
-  | 'sparkles';
+  | 'sparkles'
+  | 'tv';
 
 interface IconProps {
   name: IconName;
@@ -225,6 +226,16 @@ export function Icon({ name, size = 18 }: IconProps) {
         <svg viewBox="0 0 24 24" style={s}>
           <path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z" {...stroke} />
           <path d="M19 17l.7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7z" {...stroke} />
+        </svg>
+      );
+    case 'tv':
+      return (
+        <svg viewBox="0 0 24 24" style={s}>
+          {/* Boxy retro CRT silhouette: rounded rectangle screen + base + antenna stubs */}
+          <rect x="3" y="6" width="18" height="12" rx="2" {...stroke} />
+          <path d="M8 21h8" {...stroke} />
+          <path d="M12 18v3" {...stroke} />
+          <path d="M8 3l4 3 4-3" {...stroke} />
         </svg>
       );
     default:

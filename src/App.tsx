@@ -5,6 +5,7 @@ import { Icon } from './icons';
 import { pickLanguage, useTranslation } from './i18n';
 import { NEWS_ITEMS, shuffled } from './news';
 import { UpscaleCanvas } from './upscaler';
+import { CRTCanvas } from './crt';
 import { analytics } from './analytics';
 
 type DeviceInfo = { deviceId: string; label: string };
@@ -181,6 +182,7 @@ export default function App() {
   const [fps, setFps] = useState<number>(60);
   const [mirrored, setMirrored] = useState<boolean>(false);
   const [upscaleOn, setUpscaleOn] = useState<boolean>(false);
+  const [crtOn, setCrtOn] = useState<boolean>(false);
   const [audioOn, setAudioOn] = useState<boolean>(true);
   // Monitoring volume — only affects what comes out of the speakers, not the
   // recorded mix (so a quiet headphone setting doesn't tank recording levels).
@@ -217,6 +219,9 @@ export default function App() {
   // reads from it instead of the raw <video> when upscaleOn is true so
   // recordings and screenshots capture the sharpened output.
   const upscaleCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // Same pattern for the CRT canvas — drawComposite reads from it when
+  // crtOn so recordings/screenshots include the CRT effect.
+  const crtCanvasRef = useRef<HTMLCanvasElement | null>(null);
   // One-shot guard so we set fps from the detected ShadowCast model exactly
   // once per session. After the first auto-pick, subsequent refreshDevices
   // calls (devicechange events, swap inputs, etc.) leave the user's choice
@@ -344,6 +349,7 @@ export default function App() {
     composedFilterActive: false,
     composedFilter: 'none',
     upscaleOn: false,
+    crtOn: false,
   });
 
   // -------------------------------------------------------------------------
@@ -795,6 +801,7 @@ export default function App() {
       composedFilterActive,
       composedFilter,
       upscaleOn,
+      crtOn,
     };
   });
 
@@ -973,7 +980,8 @@ export default function App() {
   // -------------------------------------------------------------------------
   // Composite drawing (screenshot + recording)
   // -------------------------------------------------------------------------
-  const drawComposite = useCallback((canvas: HTMLCanvasElement) => {
+  const drawComposite = useCallback(
+    (canvas: HTMLCanvasElement, opts?: { preserveSize?: boolean }) => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) return;
 
@@ -985,18 +993,42 @@ export default function App() {
       composedFilterActive: aFlag,
       composedFilter: fCss,
       upscaleOn: uFlag,
+      crtOn: cFlag,
     } = captureSettingsRef.current;
 
-    // When upscaling is on, capture from the WebGL canvas the user is
-    // actually watching (sharpened, 2× source). Falls back to the raw
-    // <video> if the upscale canvas isn't ready yet.
+    // Source priority for capture: CRT canvas > upscale canvas > raw video.
+    // CRT and upscale are mutually exclusive in the UI but if both somehow
+    // ended up true, CRT wins (it's the more visually transformative one).
+    const crtCanvas = crtCanvasRef.current;
     const upscaleCanvas = upscaleCanvasRef.current;
-    const useUpscale = uFlag && upscaleCanvas && upscaleCanvas.width > 0;
-    const srcW = useUpscale ? upscaleCanvas.width : video.videoWidth;
-    const srcH = useUpscale ? upscaleCanvas.height : video.videoHeight;
+    const useCrt = cFlag && crtCanvas && crtCanvas.width > 0;
+    const useUpscale = !useCrt && uFlag && upscaleCanvas && upscaleCanvas.width > 0;
+    const sourceCanvas: HTMLCanvasElement | HTMLVideoElement = useCrt
+      ? crtCanvas
+      : useUpscale
+        ? upscaleCanvas
+        : video;
+    const srcW = useCrt
+      ? crtCanvas.width
+      : useUpscale
+        ? upscaleCanvas.width
+        : video.videoWidth;
+    const srcH = useCrt
+      ? crtCanvas.height
+      : useUpscale
+        ? upscaleCanvas.height
+        : video.videoHeight;
 
-    if (canvas.width !== srcW) canvas.width = srcW;
-    if (canvas.height !== srcH) canvas.height = srcH;
+    // preserveSize keeps the output canvas at its existing dimensions,
+    // scaling the source into it. Recording uses this so a mid-recording
+    // resolution change doesn't resize (and clear) the canvas — which was
+    // showing up as a blue gap in the captured stream when users swapped
+    // resolutions while recording. Screenshots leave the option off so
+    // they render at native source resolution.
+    if (!opts?.preserveSize) {
+      if (canvas.width !== srcW) canvas.width = srcW;
+      if (canvas.height !== srcH) canvas.height = srcH;
+    }
 
     ctx.save();
     ctx.filter = aFlag ? fCss : 'none';
@@ -1004,7 +1036,7 @@ export default function App() {
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
     }
-    ctx.drawImage(useUpscale ? upscaleCanvas : video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(sourceCanvas, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
     const pipVid = pipVideoRef.current;
@@ -1098,13 +1130,20 @@ export default function App() {
     if (!video || !video.videoWidth) return;
     setError('');
 
+    // Lock the recording canvas to whatever resolution the source has at
+    // start. We then keep it locked via preserveSize: true in the render
+    // loop, so a mid-recording resolution change scales the new source
+    // into the same canvas instead of resizing (and visually clearing) it.
+    // Prevents the "blue screen after resolution swap" bug.
+    const startW = upscaleCanvasRef.current?.width || video.videoWidth;
+    const startH = upscaleCanvasRef.current?.height || video.videoHeight;
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = startW;
+    canvas.height = startH;
     recordingCanvasRef.current = canvas;
 
     const renderLoop = () => {
-      drawComposite(canvas);
+      drawComposite(canvas, { preserveSize: true });
       recordingRafRef.current = requestAnimationFrame(renderLoop);
     };
     renderLoop();
@@ -1458,15 +1497,27 @@ export default function App() {
           playsInline
           className={`arc-video ${mirrored ? 'is-mirrored' : ''}`}
           style={{
-            // Hide the raw <video> when upscaling is on — the WebGL canvas
-            // renders an enhanced version on top. The element stays mounted
-            // so its srcObject keeps producing frames the upscaler can read.
-            display: running && !upscaleOn ? 'block' : 'none',
+            // Hide the raw <video> when a WebGL pass is active — the canvas
+            // (upscaler or CRT) renders on top. Element stays mounted so its
+            // srcObject keeps producing frames the shader can read.
+            display: running && !upscaleOn && !crtOn ? 'block' : 'none',
             filter: composedFilterActive ? composedFilter : undefined,
           }}
         />
 
-        {running && upscaleOn && (
+        {running && crtOn && (
+          <CRTCanvas
+            videoRef={videoRef}
+            canvasRef={crtCanvasRef}
+            className={`arc-video ${mirrored ? 'is-mirrored' : ''}`}
+            style={{
+              display: 'block',
+              filter: composedFilterActive ? composedFilter : undefined,
+            }}
+          />
+        )}
+
+        {running && upscaleOn && !crtOn && (
           <UpscaleCanvas
             videoRef={videoRef}
             canvasRef={upscaleCanvasRef}
@@ -1732,7 +1783,7 @@ export default function App() {
           {/* 4K upscaling — locked behind ShadowCast detection. When the
               active device isn't a ShadowCast we keep the button mounted
               (so the tooltip can explain why) but render it as soft-disabled
-              with a no-op click. */}
+              with a no-op click. Mutually exclusive with CRT. */}
           {(() => {
             const upscaleAvailable = isShadowcastActive;
             const upscaleLabel = upscaleAvailable
@@ -1751,8 +1802,15 @@ export default function App() {
                   onIconLeave();
                   if (running && upscaleAvailable) {
                     setUpscaleOn((v) => {
-                      analytics.toggle('upscale', !v);
-                      return !v;
+                      const next = !v;
+                      analytics.toggle('upscale', next);
+                      // Mutually exclusive with CRT — turning Enhance on
+                      // turns CRT off so the two WebGL passes don't fight.
+                      if (next && crtOn) {
+                        setCrtOn(false);
+                        analytics.toggle('crt', false);
+                      }
+                      return next;
                     });
                   }
                 }}
@@ -1764,6 +1822,36 @@ export default function App() {
               </button>
             );
           })()}
+
+          {/* CRT mode — WebGL shader that lays scanlines + RGB slot mask +
+              vignette + slight curvature on top of the source. Universal
+              (no SC gating — it's an aesthetic choice, not a hardware
+              feature). Mutually exclusive with Enhance. */}
+          <button
+            className={`arc-tool ${crtOn ? 'is-active' : ''}`}
+            onMouseEnter={onIconEnter('CRT mode')}
+            onMouseLeave={onIconLeave}
+            onFocus={onIconEnter('CRT mode')}
+            onBlur={onIconLeave}
+            onClick={() => {
+              onIconLeave();
+              if (!running) return;
+              setCrtOn((v) => {
+                const next = !v;
+                analytics.toggle('crt', next);
+                if (next && upscaleOn) {
+                  setUpscaleOn(false);
+                  analytics.toggle('upscale', false);
+                }
+                return next;
+              });
+            }}
+            disabled={!running}
+            aria-label="CRT mode"
+            type="button"
+          >
+            <Icon name="tv" size={18} />
+          </button>
 
           <div className="arc-tools-divider" />
 
