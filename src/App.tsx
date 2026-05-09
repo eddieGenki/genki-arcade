@@ -1031,7 +1031,14 @@ export default function App() {
     }
 
     ctx.save();
-    ctx.filter = aFlag ? fCss : 'none';
+    // ctx.filter is only used for the raw-video case. When the source is a
+    // WebGL canvas (CRT or upscale), BCS is already baked into its pixels
+    // by the shader — re-applying ctx.filter here would double-apply on
+    // browsers where it works, and silently no-op on browsers where it
+    // doesn't apply to canvas sources (which is what was breaking
+    // recordings before this change).
+    const isWebglSource = useCrt || useUpscale;
+    ctx.filter = aFlag && !isWebglSource ? fCss : 'none';
     if (mFlag) {
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
@@ -1509,11 +1516,11 @@ export default function App() {
           <CRTCanvas
             videoRef={videoRef}
             canvasRef={crtCanvasRef}
+            brightness={brightness}
+            contrast={contrast}
+            saturation={saturation}
             className={`arc-video ${mirrored ? 'is-mirrored' : ''}`}
-            style={{
-              display: 'block',
-              filter: composedFilterActive ? composedFilter : undefined,
-            }}
+            style={{ display: 'block' }}
           />
         )}
 
@@ -1521,11 +1528,11 @@ export default function App() {
           <UpscaleCanvas
             videoRef={videoRef}
             canvasRef={upscaleCanvasRef}
+            brightness={brightness}
+            contrast={contrast}
+            saturation={saturation}
             className={`arc-video ${mirrored ? 'is-mirrored' : ''}`}
-            style={{
-              display: 'block',
-              filter: composedFilterActive ? composedFilter : undefined,
-            }}
+            style={{ display: 'block' }}
           />
         )}
 

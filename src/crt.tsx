@@ -25,6 +25,9 @@ const FRAG_SRC = /* glsl */ `
 precision mediump float;
 uniform sampler2D u_video;
 uniform vec2 u_resolution;
+uniform float u_brightness;
+uniform float u_contrast;
+uniform float u_saturation;
 varying vec2 v_uv;
 
 const float CURVATURE = 0.04;       // 0 = flat, 0.1 = obvious bend
@@ -75,6 +78,16 @@ void main() {
   // Mild gamma curve — lifts midtones, deepens darks. CRTs felt warmer.
   color = pow(color, vec3(GAMMA));
 
+  // User color sliders. Applied last so they layer on top of all the
+  // CRT character — that way "saturation 0.5" still leaves the scanlines
+  // and slot mask intact, just desaturated. Order matches CSS filter:
+  // brightness (multiply), contrast (around 0.5 midpoint), saturation
+  // (mix toward luma).
+  color *= u_brightness;
+  color = (color - 0.5) * u_contrast + 0.5;
+  float lum = dot(color, vec3(0.299, 0.587, 0.114));
+  color = mix(vec3(lum), color, u_saturation);
+
   gl_FragColor = vec4(color, 1.0);
 }
 `;
@@ -111,6 +124,13 @@ export interface CRTCanvasProps {
   /** Outbound ref so the parent (recording / screenshot pipeline) can read
    * pixels from the post-CRT canvas. */
   canvasRef?: React.MutableRefObject<HTMLCanvasElement | null>;
+  /** Color sliders. Baked into the shader so the canvas pixels reflect
+   * them, which is critical for recording — ctx.filter on canvas-source
+   * drawImage isn't reliable across browsers, so we apply BCS in-shader
+   * and the canvas pixels are correct everywhere they're sampled. */
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
 }
 
 export function CRTCanvas({
@@ -118,9 +138,22 @@ export function CRTCanvas({
   className,
   style,
   canvasRef: externalCanvasRef,
+  brightness = 1,
+  contrast = 1,
+  saturation = 1,
 }: CRTCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  // Mirror BCS into refs so the long-lived render loop can read latest
+  // values without being torn down/rebuilt on every slider drag.
+  const brightnessRef = useRef(brightness);
+  const contrastRef = useRef(contrast);
+  const saturationRef = useRef(saturation);
+  useEffect(() => {
+    brightnessRef.current = brightness;
+    contrastRef.current = contrast;
+    saturationRef.current = saturation;
+  }, [brightness, contrast, saturation]);
 
   useEffect(() => {
     if (externalCanvasRef) externalCanvasRef.current = canvasRef.current;
@@ -176,6 +209,9 @@ export function CRTCanvas({
 
     const uVideo = gl.getUniformLocation(program, 'u_video');
     const uResolution = gl.getUniformLocation(program, 'u_resolution');
+    const uBrightness = gl.getUniformLocation(program, 'u_brightness');
+    const uContrast = gl.getUniformLocation(program, 'u_contrast');
+    const uSaturation = gl.getUniformLocation(program, 'u_saturation');
     gl.uniform1i(uVideo, 0);
 
     const render = () => {
@@ -199,6 +235,9 @@ export function CRTCanvas({
         gl.bindTexture(gl.TEXTURE_2D, tex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, vEl);
         gl.uniform2f(uResolution, vw, vh);
+        gl.uniform1f(uBrightness, brightnessRef.current);
+        gl.uniform1f(uContrast, contrastRef.current);
+        gl.uniform1f(uSaturation, saturationRef.current);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       } catch {
         // Some browsers throw if the video frame isn't ready yet — skip frame.

@@ -24,11 +24,17 @@ void main() {
 
 // 5-tap unsharp-mask sharpen on top of GL_LINEAR sampling. Cheap, stable,
 // noticeably crisper than plain bilinear. ~30 µs per frame on integrated
-// GPUs at 4K.
+// GPUs at 4K. BCS uniforms applied last so the user's color sliders bake
+// into the canvas pixels (recording / screenshot pipelines sample those
+// pixels directly, and ctx.filter on canvas-source drawImage isn't a
+// reliable cross-browser path).
 const FRAG_SRC = /* glsl */ `
 precision mediump float;
 uniform sampler2D u_video;
 uniform vec2 u_pixelSize;
+uniform float u_brightness;
+uniform float u_contrast;
+uniform float u_saturation;
 varying vec2 v_uv;
 void main() {
   vec2 d = u_pixelSize;
@@ -39,7 +45,15 @@ void main() {
   vec4 e = texture2D(u_video, v_uv + vec2( d.x, 0.0));
   // Strength 0.5 sharpening kernel: center 1.5, neighbours -0.125 each.
   vec4 sharpened = c * 1.5 - 0.125 * (n + s + w + e);
-  gl_FragColor = clamp(sharpened, 0.0, 1.0);
+  vec3 color = clamp(sharpened.rgb, 0.0, 1.0);
+
+  // BCS — same order as a CSS filter chain.
+  color *= u_brightness;
+  color = (color - 0.5) * u_contrast + 0.5;
+  float lum = dot(color, vec3(0.299, 0.587, 0.114));
+  color = mix(vec3(lum), color, u_saturation);
+
+  gl_FragColor = vec4(color, 1.0);
 }
 `;
 
@@ -77,6 +91,11 @@ export interface UpscaleCanvasProps {
   /** Optional outbound ref so the parent can read the upscaled canvas
    * (e.g. to route recording / screenshots through it). */
   canvasRef?: React.MutableRefObject<HTMLCanvasElement | null>;
+  /** Color slider values baked into the shader so the canvas pixels
+   * reflect them — see comment in crt.tsx for the ctx.filter rationale. */
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
 }
 
 export function UpscaleCanvas({
@@ -85,9 +104,20 @@ export function UpscaleCanvas({
   style,
   scale = 2,
   canvasRef: externalCanvasRef,
+  brightness = 1,
+  contrast = 1,
+  saturation = 1,
 }: UpscaleCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const brightnessRef = useRef(brightness);
+  const contrastRef = useRef(contrast);
+  const saturationRef = useRef(saturation);
+  useEffect(() => {
+    brightnessRef.current = brightness;
+    contrastRef.current = contrast;
+    saturationRef.current = saturation;
+  }, [brightness, contrast, saturation]);
 
   // Mirror the internal canvas ref out to the parent if requested.
   useEffect(() => {
@@ -147,6 +177,9 @@ export function UpscaleCanvas({
 
     const uVideo = gl.getUniformLocation(program, 'u_video');
     const uPixel = gl.getUniformLocation(program, 'u_pixelSize');
+    const uBrightness = gl.getUniformLocation(program, 'u_brightness');
+    const uContrast = gl.getUniformLocation(program, 'u_contrast');
+    const uSaturation = gl.getUniformLocation(program, 'u_saturation');
     gl.uniform1i(uVideo, 0);
 
     // Cap output dimensions at 4K (3840×2160). Upscaling beyond 4K is
@@ -182,6 +215,9 @@ export function UpscaleCanvas({
         gl.bindTexture(gl.TEXTURE_2D, tex);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, vEl);
         gl.uniform2f(uPixel, 1 / vw, 1 / vh);
+        gl.uniform1f(uBrightness, brightnessRef.current);
+        gl.uniform1f(uContrast, contrastRef.current);
+        gl.uniform1f(uSaturation, saturationRef.current);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       } catch {
         // Some browsers throw if the video frame isn't ready yet — skip frame.
