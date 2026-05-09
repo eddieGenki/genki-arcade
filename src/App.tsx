@@ -1355,6 +1355,9 @@ export default function App() {
           takeScreenshot();
           break;
         case 'r':
+        case ' ':
+          // Space is the natural "play/pause"-flavored toggle; R is also
+          // available for keyboards where Space is mapped elsewhere.
           e.preventDefault();
           if (recording) stopRecording();
           else startRecording();
@@ -1371,7 +1374,7 @@ export default function App() {
           e.preventDefault();
           setAudioOn((v) => !v);
           break;
-        case 'e':
+        case 'u':
           if (isShadowcastActive) {
             e.preventDefault();
             setUpscaleOn((v) => {
@@ -1404,7 +1407,7 @@ export default function App() {
             return !v;
           });
           break;
-        case 'k':
+        case 'v':
           e.preventDefault();
           setMicOn((v) => {
             analytics.toggle('mic', !v);
@@ -1609,7 +1612,27 @@ export default function App() {
       </header>
 
       {/* STAGE */}
-      <main className="arc-stage" ref={stageRef as React.RefObject<HTMLElement>}>
+      <main
+        className="arc-stage"
+        ref={stageRef as React.RefObject<HTMLElement>}
+        onDoubleClick={(e) => {
+          // Toggle fullscreen when the user double-clicks the stage,
+          // matching YouTube / native player conventions. Skip when the
+          // double-click landed inside an interactive overlay (PiP, ticker
+          // close button, idle-screen CTAs) so it doesn't fire when the
+          // user actually meant to interact.
+          const target = e.target as HTMLElement;
+          if (
+            target.closest('.arc-pip') ||
+            target.closest('.arc-ticker-slot') ||
+            target.closest('.arc-corner-actions') ||
+            target.closest('.arc-faq-trigger') ||
+            target.closest('.arc-upsell')
+          )
+            return;
+          if (running) toggleFullscreen();
+        }}
+      >
         {!running && (
           <IdleHero t={t} showUpsell={showUpsell} onDismissUpsell={dismissUpsell} />
         )}
@@ -1926,7 +1949,7 @@ export default function App() {
           {(() => {
             const upscaleAvailable = isShadowcastActive;
             const upscaleLabel = upscaleAvailable
-              ? '4K upscaling · E'
+              ? '4K upscaling · U'
               : '4K upscaling — ShadowCast required';
             return (
               <button
@@ -2007,7 +2030,7 @@ export default function App() {
           <ToolBtn
             icon={recording ? 'stop' : 'record'}
             label={recording ? t.stop : t.record}
-            shortcut="R"
+            shortcut="R / Space"
             active={recording}
             onClick={() => (recording ? stopRecording() : startRecording())}
             disabled={!running}
@@ -2017,7 +2040,7 @@ export default function App() {
           <ToolBtn
             icon="mic"
             label={t.recordMic}
-            shortcut="K"
+            shortcut="V"
             active={micOn}
             onClick={() => {
               setMicOn((v) => {
