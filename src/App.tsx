@@ -1256,16 +1256,14 @@ export default function App() {
       ? shortRes(upscaleTargetW, upscaleTargetH)
       : null;
 
-  // Format detection. Prefer the live VideoFrame probe when available, else
-  // fall back to bandwidth prediction. Neither is fully authoritative on
-  // macOS — see comment by probeDecodedFormat — but the simple verdict
-  // (Uncompressed / Compressed-MJPG) is the UX users prefer. The
-  // "— predicted" suffix is shown when the probe didn't fire.
+  // (Source-format detection has been removed from the UI — neither the
+  // bandwidth-prediction nor the post-decode probe is authoritative on
+  // macOS, and a wrong indicator is worse than no indicator. The probe
+  // still runs once per stream-start to populate analytics, but the
+  // value isn't surfaced anywhere user-facing. If browsers ever expose
+  // a real pixelFormat constraint we can flip on, we can bring back a
+  // toggle then — for now, no UI noise.)
   const [reqW, reqH] = resolution.split('x').map(Number);
-  const probedFormat = formatFromDecoded(decodedFormat);
-  const currentFormat: 'uncompressed' | 'mjpg' =
-    probedFormat ?? expectedFormat(actualW, actualH, actualFps);
-  const formatIsProbed = probedFormat !== null;
 
   // ChromaCast™ — SC3-locked, otherwise toggle-respecting. Used to be
   // MJPG-only-gated, but Chrome's video pipeline on macOS loses chroma
@@ -1591,33 +1589,10 @@ export default function App() {
                         ))}
                       </select>
                     </SettingRow>
-                    <div
-                      className={`arc-format-row arc-format-${currentFormat}`}
-                      title={
-                        currentFormat === 'mjpg'
-                          ? 'This combo exceeds USB 3.0 uncompressed bandwidth, so the capture card encodes to MJPG. Quality is still high but colors can look a bit flatter — toggle ChromaCast to compensate.'
-                          : 'YUY2 / NV12 uncompressed — the capture card sends raw pixels, full color fidelity.'
-                      }
-                    >
-                      <span className="arc-format-mark">
-                        {currentFormat === 'mjpg' ? '▲' : '●'}
-                      </span>
-                      <span>
-                        {currentFormat === 'mjpg' ? 'Compressed (MJPG)' : 'Uncompressed'}
-                        {!formatIsProbed && (
-                          <span className="arc-format-sub"> — predicted</span>
-                        )}
-                      </span>
-                    </div>
-
-                    {/* ChromaCast™ — Genki MJPG color correction. Always
-                        visible so users can find and configure it
-                        regardless of the current resolution/fps. Only
-                        selectable when a ShadowCast 3 is the active main
-                        device; otherwise the row is dimmed and the
-                        checkbox HTML-disabled. The filter itself is gated
-                        on MJPG mode in chromaCastActive, so the toggle is
-                        essentially "I want this on whenever it can apply." */}
+                    {/* ChromaCast™ — Genki color compensation. SC3-locked.
+                        Compensates for the chroma fidelity loss the browser
+                        pipeline imposes on every source format. CSS filter
+                        only, so zero added latency. */}
                     <label
                       className={`arc-chromacast-row ${
                         !isShadowcast3 ? 'is-locked' : ''
@@ -1633,8 +1608,8 @@ export default function App() {
                         <strong>ChromaCast™</strong>
                         <span className="arc-chromacast-sub">
                           {isShadowcast3
-                            ? 'Restore vivid colors in compressed (MJPG) capture'
-                            : 'Restore vivid colors in compressed (MJPG) capture — ShadowCast 3 required'}
+                            ? 'Boost browser color fidelity (zero latency)'
+                            : 'Boost browser color fidelity — ShadowCast 3 required'}
                         </span>
                       </span>
                     </label>
