@@ -134,7 +134,14 @@ export function CRTCanvas({
     const videoEl = videoRef.current;
     if (!canvas || !videoEl) return;
 
-    const gl = canvas.getContext('webgl', { antialias: false, premultipliedAlpha: false });
+    // preserveDrawingBuffer: true so screenshot's drawImage() can read the
+    // last rendered frame instead of a cleared buffer. See same comment in
+    // upscaler.tsx — same WebGL gotcha, same fix.
+    const gl = canvas.getContext('webgl', {
+      antialias: false,
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: true,
+    });
     if (!gl) {
       console.warn('CRT: WebGL not available, falling back.');
       return;

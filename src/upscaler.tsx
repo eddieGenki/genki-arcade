@@ -102,7 +102,15 @@ export function UpscaleCanvas({
     const videoEl = videoRef.current;
     if (!canvas || !videoEl) return;
 
-    const gl = canvas.getContext('webgl', { antialias: false, premultipliedAlpha: false });
+    // preserveDrawingBuffer: true keeps the rendered frame readable until
+    // the next render call. Without it, drawImage(canvas) at screenshot
+    // time can capture a cleared framebuffer (blank screenshot bug).
+    // Small performance cost; well worth it for correct screenshots.
+    const gl = canvas.getContext('webgl', {
+      antialias: false,
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: true,
+    });
     if (!gl) {
       console.warn('Upscaler: WebGL not available, falling back.');
       return;
