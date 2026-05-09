@@ -136,15 +136,8 @@ const RESOLUTION_OPTIONS: Array<{ value: string; label: string }> = [
 
 const FPS_OPTIONS = [120, 60, 30];
 
-// ChromaCast™ — Genki color correction for the browser-pipeline penalty.
-// Applied as a CSS filter so it composes at GPU paint time with zero
-// added latency (vs the upscale's WebGL roundtrip). Tuned to roughly
-// match what OBS/Camo Studio show on the same source — they have +10%
-// contrast / +18-22% saturation perceptually over the bare browser
-// output, which is what we restore here. Pairs with the upscale's
-// unsharp pass when both are on, but works on its own as the cheapest
-// way to close the color gap without any frame-pipeline cost.
-const CHROMACAST_FILTER = 'contrast(1.10) saturate(1.20)';
+// (ChromaCast preset constant removed — three manual sliders replace it.
+// See the Color section in the settings popover.)
 
 // Per-resolution upper bound on framerate that capture cards in 2026
 // commonly deliver. 4K@120 needs HDMI 2.1 capture (rare); 1440p@120 is also
@@ -192,27 +185,11 @@ export default function App() {
   // Monitoring volume — only affects what comes out of the speakers, not the
   // recorded mix (so a quiet headphone setting doesn't tank recording levels).
   const [volume, setVolume] = useState<number>(1);
-  // ChromaCast preference is persistent across sessions. Default ON for
-  // new users (no saved preference) — the browser pipeline visibly mutes
-  // colors vs OBS, and the filter is GPU-composited with zero latency
-  // cost, so it's a free win. Returning users keep whatever they had.
-  const [chromaCastEnabled, setChromaCastEnabledState] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('arcadeChromaCast');
-      return saved === null ? true : saved === 'true';
-    } catch {
-      return true;
-    }
-  });
-  const setChromaCastEnabled = useCallback((on: boolean) => {
-    setChromaCastEnabledState(on);
-    analytics.toggle('chromacast', on);
-    try {
-      localStorage.setItem('arcadeChromaCast', String(on));
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  // (ChromaCast preset removed — replaced with manual brightness / contrast /
+  // saturation sliders below. A single preset value couldn't fit content as
+  // varied as cartoon games + dark cinematics + black-and-white horror, so
+  // tuning is now in user hands. CSS filter pipeline stays GPU-composited,
+  // zero added latency.)
 
   // ---- Mic ---------------------------------------------------------------
   const [micOn, setMicOn] = useState<boolean>(false);
@@ -284,9 +261,59 @@ export default function App() {
   // ---- Image adjustments (state only — UI hidden in this design pass) -----
   // Preserved so the canvas pipeline still receives them. We can re-introduce
   // the popover later as a settings entry.
-  const [brightness] = useState<number>(1);
-  const [contrast] = useState<number>(1);
-  const [saturation] = useState<number>(1);
+  // Color adjustments — three CSS-filter sliders, persisted per-user.
+  // Defaults at 1.0 (no effect). Presets stuff predefined values in.
+  const readNum = (key: string, fallback: number): number => {
+    try {
+      const v = localStorage.getItem(key);
+      const n = v === null ? NaN : Number(v);
+      return Number.isFinite(n) ? n : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const writeNum = (key: string, n: number) => {
+    try {
+      localStorage.setItem(key, String(n));
+    } catch {
+      /* ignore */
+    }
+  };
+  const [brightness, setBrightnessState] = useState<number>(() =>
+    readNum('arcadeBrightness', 1),
+  );
+  const [contrast, setContrastState] = useState<number>(() =>
+    readNum('arcadeContrast', 1),
+  );
+  const [saturation, setSaturationState] = useState<number>(() =>
+    readNum('arcadeSaturation', 1),
+  );
+  const setBrightness = useCallback((v: number) => {
+    setBrightnessState(v);
+    writeNum('arcadeBrightness', v);
+  }, []);
+  const setContrast = useCallback((v: number) => {
+    setContrastState(v);
+    writeNum('arcadeContrast', v);
+  }, []);
+  const setSaturation = useCallback((v: number) => {
+    setSaturationState(v);
+    writeNum('arcadeSaturation', v);
+  }, []);
+  const applyColorPreset = useCallback(
+    (preset: 'reset' | 'vivid' | 'cinematic') => {
+      const values =
+        preset === 'vivid'
+          ? { b: 1, c: 1.1, s: 1.2 }
+          : preset === 'cinematic'
+            ? { b: 0.95, c: 1.15, s: 0.85 }
+            : { b: 1, c: 1, s: 1 };
+      setBrightness(values.b);
+      setContrast(values.c);
+      setSaturation(values.s);
+    },
+    [setBrightness, setContrast, setSaturation],
+  );
   const filterCss = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation})`;
   const adjustmentsActive = brightness !== 1 || contrast !== 1 || saturation !== 1;
 
@@ -1265,21 +1292,12 @@ export default function App() {
   // toggle then — for now, no UI noise.)
   const [reqW, reqH] = resolution.split('x').map(Number);
 
-  // ChromaCast™ — SC3-locked, otherwise toggle-respecting. Used to be
-  // MJPG-only-gated, but Chrome's video pipeline on macOS loses chroma
-  // fidelity even on truly-uncompressed sources, so the filter helps
-  // everywhere. If the user has it on for an SC3, it applies.
-  const chromaCastActive = chromaCastEnabled && isShadowcast3;
-  // Composed filter chain — image adjustments (currently UI-hidden but the
-  // state machine still feeds them in) plus ChromaCast when active.
-  const composedFilter =
-    [
-      adjustmentsActive ? filterCss : '',
-      chromaCastActive ? CHROMACAST_FILTER : '',
-    ]
-      .filter(Boolean)
-      .join(' ') || 'none';
-  const composedFilterActive = adjustmentsActive || chromaCastActive;
+  // Composed filter chain — only the manual color sliders contribute now.
+  // Kept the composedFilter / composedFilterActive variable names so the
+  // capture pipeline (drawComposite, video element, upscaler canvas) can
+  // keep using them as the unified "should we apply a CSS filter?" signal.
+  const composedFilter = adjustmentsActive ? filterCss : 'none';
+  const composedFilterActive = adjustmentsActive;
 
   // Helpers to filter dropdowns to what the *current* main device actually
   // supports. Devices report `width.max`, `height.max`, `frameRate.max` via
@@ -1589,30 +1607,62 @@ export default function App() {
                         ))}
                       </select>
                     </SettingRow>
-                    {/* ChromaCast™ — Genki color compensation. SC3-locked.
-                        Compensates for the chroma fidelity loss the browser
-                        pipeline imposes on every source format. CSS filter
-                        only, so zero added latency. */}
-                    <label
-                      className={`arc-chromacast-row ${
-                        !isShadowcast3 ? 'is-locked' : ''
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={chromaCastEnabled}
-                        onChange={(e) => setChromaCastEnabled(e.target.checked)}
-                        disabled={!isShadowcast3}
-                      />
-                      <span className="arc-chromacast-text">
-                        <strong>ChromaCast™</strong>
-                        <span className="arc-chromacast-sub">
-                          {isShadowcast3
-                            ? 'Boost browser color fidelity (zero latency)'
-                            : 'Boost browser color fidelity — ShadowCast 3 required'}
-                        </span>
-                      </span>
-                    </label>
+                  </div>
+                </div>
+
+                {/* Color — manual brightness / contrast / saturation sliders.
+                    All CSS filters, GPU-composited, zero added latency. The
+                    three preset buttons stuff predefined values into the
+                    sliders; from there the user can fine-tune. */}
+                <div className="arc-settings-section">
+                  <div className="arc-settings-section-title">
+                    Color
+                    <span className="arc-color-presets">
+                      <button
+                        type="button"
+                        className="arc-color-preset"
+                        onClick={() => applyColorPreset('reset')}
+                      >
+                        Reset
+                      </button>
+                      <button
+                        type="button"
+                        className="arc-color-preset"
+                        onClick={() => applyColorPreset('vivid')}
+                      >
+                        Vivid
+                      </button>
+                      <button
+                        type="button"
+                        className="arc-color-preset"
+                        onClick={() => applyColorPreset('cinematic')}
+                      >
+                        Cinematic
+                      </button>
+                    </span>
+                  </div>
+                  <div className="arc-color-grid">
+                    <ColorSlider
+                      label="Brightness"
+                      value={brightness}
+                      onChange={setBrightness}
+                      min={0.7}
+                      max={1.3}
+                    />
+                    <ColorSlider
+                      label="Contrast"
+                      value={contrast}
+                      onChange={setContrast}
+                      min={0.7}
+                      max={1.3}
+                    />
+                    <ColorSlider
+                      label="Saturation"
+                      value={saturation}
+                      onChange={setSaturation}
+                      min={0}
+                      max={1.5}
+                    />
                   </div>
                 </div>
 
@@ -2189,6 +2239,40 @@ function SettingRow({ label, children }: { label: string; children: React.ReactN
     <label className="arc-setting-row">
       <span className="arc-setting-label">{label}</span>
       {children}
+    </label>
+  );
+}
+
+// Single label + range slider + numeric readout for the Color section.
+// Step is fixed at 0.05 — finer than that is below the perceptual JND for
+// these filters, so it's just decoration. Numeric value gives precise
+// feedback so users can land on a remembered tuning.
+function ColorSlider({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  min: number;
+  max: number;
+}) {
+  return (
+    <label className="arc-color-row">
+      <span className="arc-color-row-label">{label}</span>
+      <input
+        type="range"
+        className="arc-color-slider"
+        min={min}
+        max={max}
+        step={0.05}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+      />
+      <span className="arc-color-row-value">{value.toFixed(2)}</span>
     </label>
   );
 }
