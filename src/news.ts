@@ -96,7 +96,7 @@ export const NEWS_ITEMS: NewsItem[] = [
     text: 'Konami × Motion Twin (Dead Cells). best decision Konami has made in 15 years. low bar — still counts.',
   },
 
-  // ── Hype + market commentary (7) ─────────────────────────────────────
+  // ── Hype + market commentary (6) ─────────────────────────────────────
   {
     id: 'sgf-countdown',
     headline: { label: 'Summer Game Fest · around the corner' },
@@ -116,11 +116,6 @@ export const NEWS_ITEMS: NewsItem[] = [
     id: 'steam-controller-soldout',
     headline: { label: 'Steam Controller sold out in 30 min' },
     text: "Valve's opening a reservation queue. word on the street: Genki's cooking one that outperforms it 👀",
-  },
-  {
-    id: 'steam-machine-preorders',
-    headline: { label: 'Steam Machine · pre-orders imminent' },
-    text: "four SKUs at $700 / $750, 20K-unit reservation cap, one per customer. the long con officially ending 🕹️",
   },
   {
     id: 'stellar-blade-2-self-publish',
