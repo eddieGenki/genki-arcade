@@ -12,12 +12,36 @@ type DeviceInfo = { deviceId: string; label: string };
 
 const SHADOWCAST_HINTS = ['shadowcast', 'shadow cast', 'genki'];
 const SHADOWCAST3_HINT = /shadowcast\s*3/i;
-// UTM-tagged so Shopify attributes orders back to the arcade app. View
-// in Shopify Admin → Analytics → "Sales attributed to marketing" or
-// "Top traffic sources." utm_medium=upsell distinguishes this surface
-// from the news-ticker links (utm_medium=ticker).
+
+// Three upsell URLs — picked at render time by detected capture device.
+// All UTM-tagged so Shopify attributes orders back to the arcade app
+// (Admin → Analytics → "Top traffic sources" / "Sales attributed to
+// marketing"). utm_medium=upsell distinguishes this surface from the
+// news-ticker links (utm_medium=ticker).
+//
+// Generic SC3 pitch — shown to unknown / non-Genki / non-competitor users
+// (FaceTime, hidden file:// labels, etc).
 const SHOPIFY_SHADOWCAST3_URL =
   'https://www.genkithings.com/products/shadowcast-3-pro?utm_source=arcade&utm_medium=upsell&utm_campaign=arcade-app';
+// $15 off for existing ShadowCast 1 / 2 owners. Shopify discount-code URL
+// auto-applies and redirects to the product page (users don't enter a code).
+const SHADOWCAST3_UPGRADE_URL =
+  'https://www.genkithings.com/discount/CX58Z8RDC8ZK?redirect=%2Fproducts%2Fshadowcast-3-pro&utm_source=arcade&utm_medium=upsell&utm_campaign=arcade-app';
+// $10 off for users on a competing capture card (Elgato, AVerMedia, etc.)
+// — "switch and see what ShadowCast can do" angle.
+const SHADOWCAST3_SWITCHER_URL =
+  'https://www.genkithings.com/discount/489SG87P5B3B?redirect=%2Fproducts%2Fshadowcast-3-pro&utm_source=arcade&utm_medium=upsell&utm_campaign=arcade-app';
+
+// Both promo codes expire on the same date. Surfaced in the UI on the
+// discounted variants so they read as time-limited, not evergreen.
+const UPSELL_EXPIRES_LABEL = 'Offer ends June 15';
+
+// Common competing capture-card brands. Detected by label keyword — add
+// other brands here as you encounter them.
+const COMPETITOR_CAPTURE_RE = /\b(elgato|avermedia|mirabox|hyperdeck)\b/i;
+function isCompetitorCaptureDevice(label: string | undefined): boolean {
+  return !!label && COMPETITOR_CAPTURE_RE.test(label);
+}
 
 function isGenkiDevice(label: string | undefined): boolean {
   if (!label) return false;
@@ -56,13 +80,24 @@ function defaultFpsForLabel(label: string | undefined): number | null {
 }
 
 // Predict whether a given resolution + framerate combo will be delivered
-// uncompressed (YUY2/NV12, ~16 bits per pixel) or compressed in MJPG.
-// Heuristic: if uncompressed bandwidth exceeds ~4 Gbps (the practical USB 3.0
-// isochronous ceiling for a single capture card), the device almost always
-// falls back to MJPG. Generic — works for any UVC capture card. Will be
-// replaced with per-device lookup tables for known Genki devices once we
-// validate against real ShadowCast hardware.
-const USB3_PRACTICAL_BPS = 4_000_000_000;
+// uncompressed (YUY2/NV12) or compressed in MJPG.
+//
+// Browsers force this decision; we don't get to choose like a native capture
+// app does. Empirically Chrome / Safari on macOS aggressively prefer MJPG
+// even when uncompressed *would* fit USB 3.0 — they only pick uncompressed
+// for genuinely low-bandwidth combos (~1.8 Gbps and below in our hands-on
+// SC3 testing). Windows browsers are more permissive and roughly track the
+// actual USB ceiling (~3.6 Gbps practical for one card on isochronous USB
+// 3.0; the quoted 4 Gbps theoretical never materializes once OS overhead is
+// in the picture).
+//
+// So the threshold is platform-dependent. Will be replaced with per-device
+// lookup tables once we validate the full SC3 matrix on each OS.
+const IS_MAC =
+  typeof navigator !== 'undefined' &&
+  (/mac|iphone|ipad/i.test(navigator.platform || '') ||
+    /macintosh|mac os x|iphone|ipad/i.test(navigator.userAgent || ''));
+const USB3_PRACTICAL_BPS = IS_MAC ? 1_800_000_000 : 3_600_000_000;
 function expectedFormat(w: number, h: number, fps: number): 'uncompressed' | 'mjpg' {
   const bps = w * h * fps * 16; // YUY2 = 16 bits/pixel
   return bps <= USB3_PRACTICAL_BPS ? 'uncompressed' : 'mjpg';
@@ -1432,6 +1467,25 @@ export default function App() {
 
   const isShadowcast3 =
     SHADOWCAST3_HINT.test(activeVideoLabel) || SHADOWCAST3_HINT.test(activeAudioLabel);
+  // Legacy ShadowCast owner (SC1 / SC2 / SC2 Pro) — Genki match minus SC3.
+  // Triggers the loyalty "thank-you" upsell with $15 off instead of the
+  // generic SC3 pitch.
+  const isShadowcastLegacy = labelsKnown && isShadowcastActive && !isShadowcast3;
+  // Competing capture card (Elgato, AVerMedia, etc.) — different upsell:
+  // "switch and see what ShadowCast can do" with its own $10 off code.
+  const isCompetitorActive =
+    labelsKnown &&
+    (isCompetitorCaptureDevice(activeVideoLabel) ||
+      isCompetitorCaptureDevice(activeAudioLabel));
+  // Pick the upsell variant from detected device:
+  //   legacy   → SC1 / SC2 owner, loyalty thank-you ($15 off)
+  //   switcher → competitor capture card, $10 off to try ShadowCast
+  //   default  → fallback (FaceTime, unknown labels, file://), generic pitch
+  const upsellVariant: UpsellVariant = isShadowcastLegacy
+    ? 'legacy'
+    : isCompetitorActive
+      ? 'switcher'
+      : 'default';
   const showUpsell = !upsellDismissed && (!labelsKnown || !isShadowcast3);
 
   // Real (negotiated) resolution + fps from the live track. Fall back to the
@@ -1634,7 +1688,12 @@ export default function App() {
         }}
       >
         {!running && (
-          <IdleHero t={t} showUpsell={showUpsell} onDismissUpsell={dismissUpsell} />
+          <IdleHero
+            t={t}
+            showUpsell={showUpsell}
+            upsellVariant={upsellVariant}
+            onDismissUpsell={dismissUpsell}
+          />
         )}
         {!running && (
           <div className="arc-corner-actions">
@@ -2605,9 +2664,52 @@ function QuickStep({
   );
 }
 
-function UpsellCard({ t, onDismiss }: { t: ReturnType<typeof useTranslation>; onDismiss: () => void }) {
+type UpsellVariant = 'default' | 'legacy' | 'switcher';
+
+function UpsellCard({
+  t,
+  variant,
+  onDismiss,
+}: {
+  t: ReturnType<typeof useTranslation>;
+  variant: UpsellVariant;
+  onDismiss: () => void;
+}) {
+  // Three variants, picked upstream from the detected capture device.
+  // Both discounted variants share the same June 15 expiration line —
+  // it reads as time-limited rather than evergreen "buy our thing."
+  let eyebrow: string;
+  let title: string;
+  let body: string;
+  let cta: string;
+  let href: string;
+  let showExpiry = false;
+  if (variant === 'legacy') {
+    eyebrow = 'Thank you';
+    title = 'Trade up to ShadowCast 3.';
+    body =
+      '$15 off as a thanks for using ShadowCast over the years. Smaller, faster, 4K@60 passthrough.';
+    cta = 'Claim $15 off';
+    href = SHADOWCAST3_UPGRADE_URL;
+    showExpiry = true;
+  } else if (variant === 'switcher') {
+    eyebrow = 'Make the switch';
+    title = 'Why ShadowCast 3?';
+    body =
+      "Pocket-sized, 4K@60 passthrough, lower latency. $10 off to see why we're a bit obsessed with it.";
+    cta = 'Claim $10 off';
+    href = SHADOWCAST3_SWITCHER_URL;
+    showExpiry = true;
+  } else {
+    eyebrow = t.upsellEyebrow;
+    title = t.upsellTitle;
+    body = t.upsellBody;
+    cta = t.upsellCta;
+    href = SHOPIFY_SHADOWCAST3_URL;
+  }
+
   return (
-    <div className="arc-upsell">
+    <div className={`arc-upsell arc-upsell-${variant}`}>
       <div className="arc-upsell-img">
         <img src={sc3CableUrl} alt="ShadowCast 3" />
         <div className="arc-upsell-glow" />
@@ -2615,20 +2717,21 @@ function UpsellCard({ t, onDismiss }: { t: ReturnType<typeof useTranslation>; on
       <div className="arc-upsell-body">
         <div className="arc-upsell-eyebrow">
           <span className="arc-upsell-glyph">◆</span>
-          <span>{t.upsellEyebrow}</span>
+          <span>{eyebrow}</span>
         </div>
-        <div className="arc-upsell-title">{t.upsellTitle}</div>
-        <div className="arc-upsell-sub">{t.upsellBody}</div>
+        <div className="arc-upsell-title">{title}</div>
+        <div className="arc-upsell-sub">{body}</div>
+        {showExpiry && <div className="arc-upsell-expiry">{UPSELL_EXPIRES_LABEL}</div>}
       </div>
       <div className="arc-upsell-actions">
         <a
           className="arc-upsell-cta"
-          href={SHOPIFY_SHADOWCAST3_URL}
+          href={href}
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => analytics.upsellClicked()}
         >
-          <span>{t.upsellCta}</span>
+          <span>{cta}</span>
           <Icon name="arrow" size={13} />
         </a>
       </div>
@@ -2647,10 +2750,12 @@ function UpsellCard({ t, onDismiss }: { t: ReturnType<typeof useTranslation>; on
 function IdleHero({
   t,
   showUpsell,
+  upsellVariant,
   onDismissUpsell,
 }: {
   t: ReturnType<typeof useTranslation>;
   showUpsell: boolean;
+  upsellVariant: UpsellVariant;
   onDismissUpsell: () => void;
 }) {
   return (
@@ -2664,7 +2769,9 @@ function IdleHero({
           <QuickStep n="02" title={t.qs2Title} body={t.qs2Body} icon="play" />
           <QuickStep n="03" title={t.qs3Title} body={t.qs3Body} icon="shield" />
         </div>
-        {showUpsell && <UpsellCard t={t} onDismiss={onDismissUpsell} />}
+        {showUpsell && (
+          <UpsellCard t={t} variant={upsellVariant} onDismiss={onDismissUpsell} />
+        )}
       </div>
     </div>
   );

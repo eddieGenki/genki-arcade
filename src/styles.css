@@ -567,6 +567,18 @@ input {
   line-height: 1.35;
   color: rgba(255, 255, 255, 0.6);
 }
+/* Time-limited stamp on discounted variants ("OFFER ENDS JUNE 15").
+   Tabular numerics + coral tint + uppercase makes it read as a stamp
+   without needing a separate badge component. */
+.arc-upsell-expiry {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--coral);
+  font-variant-numeric: tabular-nums;
+}
 .arc-upsell-actions {
   flex: none;
 }
