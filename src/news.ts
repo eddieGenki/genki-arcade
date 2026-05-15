@@ -47,16 +47,11 @@ export const NEWS_ITEMS: NewsItem[] = [
     },
   },
 
-  // ── Switch 2 / Nintendo (6) ──────────────────────────────────────────
+  // ── Switch 2 / Nintendo (5) ──────────────────────────────────────────
   {
     id: 'yoshi-may-21',
     headline: { label: 'Yoshi & the Mysterious Book · May 21' },
     text: "Switch 2 exclusive. Nintendo continues its 'we don't need GTA 6' victory tour.",
-  },
-  {
-    id: 'indy-switch2',
-    headline: { label: 'Indiana Jones hits Switch 2 May 12' },
-    text: 'nazi-punching is now portable. the dream of 1981, realized 🤠',
   },
   {
     id: 'starfox-june-25',
@@ -75,15 +70,15 @@ export const NEWS_ITEMS: NewsItem[] = [
   },
   {
     id: 'switch2-price',
-    headline: { label: 'Switch 2 price hike worldwide' },
-    text: 'tariffs gonna tariff. the global console market collectively winces 🪙',
+    headline: { label: 'Switch 2 · $449 → $499 in US, Sept 1' },
+    text: 'AI RAM prices doubled in Q1, tariffs piled on top. Nintendo also trimmed next-year forecast to 16.5M units (down from 19.86M) 🪙',
   },
 
   // ── Big multi-platform launches (4) ──────────────────────────────────
   {
-    id: 'mixtape-launch',
-    headline: { label: 'Mixtape · out now' },
-    text: '🎵 skate-around-90s-suburbia vibes, no goals. millennial nostalgia is a trillion-dollar industry.',
+    id: 'subnautica2-1m',
+    headline: { label: 'Subnautica 2 · 1M copies in hour one' },
+    text: 'Early Access launched May 14 — mid-lawsuit, after Krafton fired the founders and a judge reinstated them. revenge served at 1 atmosphere of pressure 🦈',
   },
   {
     id: 'forza-tokyo',
@@ -101,10 +96,10 @@ export const NEWS_ITEMS: NewsItem[] = [
     text: 'Konami × Motion Twin (Dead Cells). best decision Konami has made in 15 years. low bar — still counts.',
   },
 
-  // ── Hype + market commentary (5) ─────────────────────────────────────
+  // ── Hype + market commentary (7) ─────────────────────────────────────
   {
     id: 'sgf-countdown',
-    headline: { label: 'Summer Game Fest · 1 month out' },
+    headline: { label: 'Summer Game Fest · around the corner' },
     text: "June 5, Dolby Theatre, ~40 games in 2 hours. Geoff Keighley's annual one-man Olympics 🎤",
   },
   {
@@ -123,16 +118,31 @@ export const NEWS_ITEMS: NewsItem[] = [
     text: "Valve's opening a reservation queue. word on the street: Genki's cooking one that outperforms it 👀",
   },
   {
-    id: 'steam-machine-rumor',
-    headline: { label: 'Steam Machine · inbound?' },
-    text: "shipping records show 15K+ unmarked consoles arriving at Valve warehouses. SteamOS 3.8.0 slipped in 'Steam Machine' references. the long con may finally be ending 🕵️",
+    id: 'steam-machine-preorders',
+    headline: { label: 'Steam Machine · pre-orders imminent' },
+    text: "four SKUs at $700 / $750, 20K-unit reservation cap, one per customer. the long con officially ending 🕹️",
+  },
+  {
+    id: 'stellar-blade-2-self-publish',
+    headline: { label: 'Stellar Blade 2 drops Sony' },
+    text: 'Shift Up will self-publish the sequel — "broad global audience" is corporate code for "no more PlayStation exclusivity." reveal before end of 2026 👋',
+  },
+  {
+    id: 'fromsoft-cerulean',
+    headline: { label: 'FromSoft · "Cerulean Onslaught" leak' },
+    text: 'rumored single-player project pegged for an SGF reveal. Soulsborne fans already pre-suffering 🗡️',
   },
 
-  // ── Industry / community (1) ─────────────────────────────────────────
+  // ── Industry / community (2) ─────────────────────────────────────────
   {
     id: 'gamestop-ebay-bid',
     headline: { label: 'GameStop CEO banned from eBay' },
     text: "Ryan Cohen reportedly wants to acquire eBay. eBay's response: ban his account. mid-acquisition, mid-tweet, nothing about this is normal corporate finance 📦",
+  },
+  {
+    id: 'discord-xbox-gp',
+    headline: { label: 'Discord Nitro · now with Game Pass' },
+    text: 'Nitro subs get the Xbox Game Pass base tier free as of May 11. Microsoft seeding funnels through the platform they sold five years ago 🎮',
   },
 ];
 
