@@ -39,7 +39,14 @@ export default defineConfig(({ mode }) => ({
             // kill-switch). VitePWA's default is /sw.js so we leave that
             // alone but document the choice here.
             filename: 'sw.js',
-            includeAssets: ['favicon.png', 'icons/apple-touch-icon.png'],
+            includeAssets: [
+              'favicon.png',
+              'icons/apple-touch-icon.png',
+              'icons/arcade-192.png',
+              'icons/arcade-512.png',
+              'icons/pwa-192.png',
+              'icons/pwa-512.png',
+            ],
             manifest: {
               name: 'Genki Arcade',
               short_name: 'Arcade',
@@ -55,23 +62,30 @@ export default defineConfig(({ mode }) => ({
               orientation: 'any',
               categories: ['entertainment', 'utilities'],
               icons: [
+                // "any" purpose — what iOS, macOS, Windows, and most
+                // Android launchers actually render. The 3D arcade-cabinet
+                // icon (pure black bg, brand-colored screen) reads as a
+                // proper Big-Sur-grade app icon in the dock.
                 {
-                  src: '/icons/pwa-192.png',
+                  src: '/icons/arcade-192.png',
                   sizes: '192x192',
                   type: 'image/png',
                   purpose: 'any',
                 },
                 {
-                  src: '/icons/pwa-512.png',
+                  src: '/icons/arcade-512.png',
                   sizes: '512x512',
                   type: 'image/png',
                   purpose: 'any',
                 },
+                // "maskable" — Android launchers crop the icon to the OS
+                // icon shape (squircle / circle / teardrop) at an 80% safe
+                // zone. The cabinet icon's red/purple sides sit at ~95%
+                // and would get clipped, so we fall back to the monogram
+                // here (proper 70% padding, brand stays intact). Most
+                // launchers will pick the "any" variant; this is just the
+                // belt-and-suspenders for Android Pixel / Samsung One UI.
                 {
-                  // Same source, marked maskable so Android crops safely
-                  // inside the OS icon shape. The Genki monogram has enough
-                  // padding around the symbol that a 10% safe-zone crop
-                  // doesn't clip anything.
                   src: '/icons/pwa-512.png',
                   sizes: '512x512',
                   type: 'image/png',
