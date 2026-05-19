@@ -124,13 +124,35 @@ export default defineConfig(({ mode }) => ({
               // asset grows past this it'll be skipped — bump the limit
               // then, don't silently miss the warning.
               maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-              // The existing /service-worker.js kill-switch isn't part of
-              // the precache (it's at the origin root and intentionally
-              // separate from this SW's scope).
-              globPatterns: ['**/*.{js,css,html,png,jpg,jpeg,svg,woff2,ico}'],
-              // SPA fallback so deep links work offline (the app is a SPA
-              // so every route resolves to /index.html anyway).
-              navigateFallback: '/index.html',
+              // Skip outdated caches when the SW activates so old asset
+              // versions don't linger in storage.
+              cleanupOutdatedCaches: true,
+              // Precache hashed assets (js/css/images/fonts) — these have
+              // content hashes in their filenames so cache-first is safe.
+              // Explicitly EXCLUDE index.html from precache: it's the
+              // entry HTML and needs to be network-first (see below) so
+              // a new deploy can ship updated install-prompt code,
+              // analytics, etc. without users being stuck on a one-build-
+              // behind cached HTML.
+              globPatterns: ['**/*.{js,css,png,jpg,jpeg,svg,woff2,ico}'],
+              globIgnores: ['**/index.html'],
+              // NetworkFirst for navigation requests (i.e. fetches of
+              // index.html when the user opens / reloads the app).
+              // Online → fresh HTML wins. Offline → falls back to the
+              // cached copy populated by the same handler on prior
+              // visits. 3-second timeout so a flaky network doesn't
+              // hang the splash.
+              runtimeCaching: [
+                {
+                  urlPattern: ({ request }) => request.mode === 'navigate',
+                  handler: 'NetworkFirst',
+                  options: {
+                    cacheName: 'navigation-html',
+                    networkTimeoutSeconds: 3,
+                    expiration: { maxEntries: 4, maxAgeSeconds: 60 * 60 * 24 * 30 },
+                  },
+                },
+              ],
             },
             devOptions: {
               // Disabled in dev to avoid SW caching surprises while iterating.
