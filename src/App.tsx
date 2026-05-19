@@ -2392,6 +2392,41 @@ const FAQ_SECTIONS: { title: string; body: React.ReactNode }[] = [
     ),
   },
   {
+    title: 'Installing as an app (offline use)',
+    body: (
+      <>
+        <p>
+          Genki Arcade can be installed as a standalone desktop / phone app —
+          dock icon, no browser chrome, works offline after the first visit.
+          Game audio + capture work exactly like in the browser tab.
+        </p>
+        <ul>
+          <li>
+            <strong>Chrome / Edge / Brave (Mac, Windows, Android):</strong>{' '}
+            click the small <em>• Install app</em> link in the bottom-right of
+            the idle screen, or use the browser's address-bar install icon.
+          </li>
+          <li>
+            <strong>Safari on macOS Sonoma+ (Safari 17+):</strong> Safari menu
+            bar → <strong>File</strong> → <strong>Add to Dock…</strong>. Apple
+            doesn't expose an install API to websites, so the menu is the only
+            path.
+          </li>
+          <li>
+            <strong>iPhone / iPad Safari:</strong> tap <strong>Share</strong>{' '}
+            (square with up-arrow) → scroll down → <strong>Add to Home
+            Screen</strong>. Camera capture inside an installed iOS PWA
+            requires <strong>iOS 16.4 or later</strong>.
+          </li>
+        </ul>
+        <p>
+          To uninstall: on macOS / Windows, right-click the app icon → Uninstall.
+          On iOS, long-press the icon → Remove App.
+        </p>
+      </>
+    ),
+  },
+  {
     title: 'Streaming to Twitch / YouTube / X',
     body: (
       <p>
@@ -2534,18 +2569,194 @@ function useInstallPrompt() {
   return { canInstall: !!event && !installed, installed, install };
 }
 
+// Apple's WebKit browsers don't implement beforeinstallprompt — install is
+// a user-initiated menu action only. Detect them so we can offer a
+// "show me how" button + modal instead of just hiding the install CTA.
+//
+// Returns 'macos-safari', 'ios', or null. Excludes Chrome/Firefox/Edge
+// running on iOS (CriOS/FxiOS/EdgiOS — they're WebKit-backed but skinned
+// differently). iPadOS 13+ identifies itself as Mac, so we sniff touch
+// support to disambiguate.
+function detectSafariInstallContext(): 'macos-safari' | 'ios' | null {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') return null;
+  const ua = navigator.userAgent;
+  const isAlreadyInstalled =
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    // iOS legacy flag
+    (navigator as unknown as { standalone?: boolean }).standalone === true;
+  if (isAlreadyInstalled) return null;
+
+  const isIOSDevice =
+    /iPhone|iPad|iPod/i.test(ua) ||
+    (navigator.platform === 'MacIntel' &&
+      (navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints !== undefined &&
+      ((navigator as unknown as { maxTouchPoints: number }).maxTouchPoints || 0) > 1);
+  if (isIOSDevice) {
+    // Any iOS browser → install path is "Share → Add to Home Screen"
+    // (Chrome / Firefox / Edge on iOS are all WebKit under the hood).
+    return 'ios';
+  }
+  const isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|Edg\//i.test(ua);
+  const isMac = /Macintosh|Mac OS X/i.test(ua);
+  if (isSafari && isMac) return 'macos-safari';
+  return null;
+}
+
 function InstallButton() {
   const { canInstall, install } = useInstallPrompt();
-  if (!canInstall) return null;
+  const [safariCtx] = useState<'macos-safari' | 'ios' | null>(() =>
+    detectSafariInstallContext(),
+  );
+  const [safariModalOpen, setSafariModalOpen] = useState(false);
+
+  if (canInstall) {
+    // Chromium path — prompt() opens the OS install dialog directly.
+    return (
+      <button
+        className="arc-faq-trigger arc-install-trigger"
+        onClick={install}
+        type="button"
+        title="Install Genki Arcade as a standalone app"
+      >
+        Install app
+      </button>
+    );
+  }
+  if (safariCtx) {
+    // Safari / iOS path — open a modal that walks the user through the
+    // manual menu steps (Apple doesn't expose a programmatic install API).
+    return (
+      <>
+        <button
+          className="arc-faq-trigger arc-install-trigger"
+          onClick={() => setSafariModalOpen(true)}
+          type="button"
+          title="Install Genki Arcade as a standalone app"
+        >
+          Install app
+        </button>
+        {safariModalOpen && (
+          <SafariInstallModal
+            platform={safariCtx}
+            onClose={() => setSafariModalOpen(false)}
+          />
+        )}
+      </>
+    );
+  }
+  return null;
+}
+
+function SafariInstallModal({
+  platform,
+  onClose,
+}: {
+  platform: 'macos-safari' | 'ios';
+  onClose: () => void;
+}) {
+  // Reuses the FaqModal class structure (.arc-faq-backdrop /
+  // .arc-faq-modal / .arc-faq-head / .arc-faq-body /
+  // .arc-faq-section[details]) so the existing styles cover us — no new
+  // CSS needed. Content is purely instructional.
+  const isIOS = platform === 'ios';
   return (
-    <button
-      className="arc-faq-trigger arc-install-trigger"
-      onClick={install}
-      type="button"
-      title="Install Genki Arcade as a standalone app"
-    >
-      Install app
-    </button>
+    <div className="arc-faq-backdrop" onClick={onClose}>
+      <div
+        className="arc-faq-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Install Genki Arcade"
+      >
+        <div className="arc-faq-head">
+          <span className="arc-eyebrow">Install Genki Arcade</span>
+          <button
+            className="arc-faq-close"
+            onClick={onClose}
+            aria-label="Close"
+            type="button"
+          >
+            <Icon name="close" size={14} />
+          </button>
+        </div>
+        <div className="arc-faq-body">
+          <details className="arc-faq-section" open>
+            <summary>
+              {isIOS
+                ? 'Add to Home Screen (iPhone / iPad)'
+                : 'Add to Dock (macOS Safari)'}
+            </summary>
+            <div className="arc-faq-content">
+              {isIOS ? (
+                <ol>
+                  <li>
+                    Tap the <strong>Share</strong> button — the square with the
+                    up arrow, at the bottom of the screen (or top right on
+                    iPad).
+                  </li>
+                  <li>
+                    Scroll down and tap <strong>Add to Home Screen</strong>.
+                  </li>
+                  <li>
+                    Confirm the name (default: <em>Arcade</em>) and tap{' '}
+                    <strong>Add</strong>.
+                  </li>
+                  <li>
+                    The cabinet icon appears on your Home Screen. Launching it
+                    opens Genki Arcade as a standalone app with no Safari
+                    chrome.
+                  </li>
+                </ol>
+              ) : (
+                <ol>
+                  <li>
+                    In Safari's menu bar, click <strong>File</strong>.
+                  </li>
+                  <li>
+                    Choose <strong>Add to Dock…</strong> (Safari 17 or later on
+                    macOS Sonoma+).
+                  </li>
+                  <li>
+                    Confirm the name (default: <em>Genki Arcade</em>) and click{' '}
+                    <strong>Add</strong>.
+                  </li>
+                  <li>
+                    The cabinet icon appears in your Dock. Click it to launch
+                    as a standalone window with no Safari chrome.
+                  </li>
+                </ol>
+              )}
+            </div>
+          </details>
+          {isIOS && (
+            <details className="arc-faq-section" open>
+              <summary>One note on capture</summary>
+              <div className="arc-faq-content">
+                <p>
+                  Camera and microphone access inside an installed iOS PWA
+                  requires <strong>iOS 16.4 or later</strong>. Older versions
+                  install fine but can't capture video. Most iPhone / iPad
+                  capture-card use needs USB-C anyway (iPhone 15+ or modern
+                  iPads), so the OS version usually lines up.
+                </p>
+              </div>
+            </details>
+          )}
+          <details className="arc-faq-section">
+            <summary>Looking for the one-click install?</summary>
+            <div className="arc-faq-content">
+              <p>
+                Apple doesn't expose a programmatic install API to websites —
+                only Safari's menu can do it. If you'd rather click a button,
+                open Genki Arcade in{' '}
+                <strong>Chrome, Edge, or Brave</strong> and use the{' '}
+                <em>Install app</em> link there instead.
+              </p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
   );
 }
 
