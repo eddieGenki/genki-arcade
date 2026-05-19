@@ -2386,7 +2386,12 @@ const FAQ_SECTIONS: { title: string; body: React.ReactNode }[] = [
           limited)
         </li>
         <li>
-          <strong>iPad / iPhone:</strong> works in Safari with USB-C ShadowCast
+          <strong>iPad (USB-C):</strong> works in Safari — M-series and recent
+          A-series iPads mount UVC capture cards natively.
+        </li>
+        <li>
+          <strong>iPhone:</strong> not supported. iPhone's USB-C port is
+          power + DisplayPort-out only and doesn't expose UVC devices.
         </li>
       </ul>
     ),
