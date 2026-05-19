@@ -43,9 +43,11 @@ export default defineConfig(({ mode }) => ({
               'favicon.png',
               'icons/apple-touch-icon.png',
               'icons/arcade-192.png',
+              'icons/arcade-256.png',
+              'icons/arcade-384.png',
               'icons/arcade-512.png',
-              'icons/pwa-192.png',
-              'icons/pwa-512.png',
+              'icons/arcade-maskable-192.png',
+              'icons/arcade-maskable-512.png',
             ],
             manifest: {
               name: 'Genki Arcade',
@@ -61,14 +63,35 @@ export default defineConfig(({ mode }) => ({
               background_color: '#0a0a0a',
               orientation: 'any',
               categories: ['entertainment', 'utilities'],
+              // Icons in size-ascending order, multiple sizes for both
+               // purposes. The cabinet is the *only* icon — no monogram
+               // fallbacks here, because Chrome's install-icon picker has
+               // been observed to prefer 'maskable' over 'any' on some
+               // platforms even on desktop, and we don't want it landing
+               // on the monogram. By making the cabinet (in safe-zone
+               // padded form) the maskable variant too, every selection
+               // path lands on the cabinet.
+               //
+               // Multiple sizes give browsers exact matches for their
+               // preferred dimensions: 192 (Android home), 256 (macOS
+               // standard app icon), 384 (high-DPI Windows), 512 (splash
+               // + high-density).
               icons: [
-                // "any" purpose — what iOS, macOS, Windows, and most
-                // Android launchers actually render. The 3D arcade-cabinet
-                // icon (pure black bg, brand-colored screen) reads as a
-                // proper Big-Sur-grade app icon in the dock.
                 {
                   src: '/icons/arcade-192.png',
                   sizes: '192x192',
+                  type: 'image/png',
+                  purpose: 'any',
+                },
+                {
+                  src: '/icons/arcade-256.png',
+                  sizes: '256x256',
+                  type: 'image/png',
+                  purpose: 'any',
+                },
+                {
+                  src: '/icons/arcade-384.png',
+                  sizes: '384x384',
                   type: 'image/png',
                   purpose: 'any',
                 },
@@ -78,15 +101,17 @@ export default defineConfig(({ mode }) => ({
                   type: 'image/png',
                   purpose: 'any',
                 },
-                // "maskable" — Android launchers crop the icon to the OS
-                // icon shape (squircle / circle / teardrop) at an 80% safe
-                // zone. The cabinet icon's red/purple sides sit at ~95%
-                // and would get clipped, so we fall back to the monogram
-                // here (proper 70% padding, brand stays intact). Most
-                // launchers will pick the "any" variant; this is just the
-                // belt-and-suspenders for Android Pixel / Samsung One UI.
+                // Padded variant — cabinet sits at ~75% of canvas with
+                // black surround so Android's icon-shape crop (80% safe
+                // zone) leaves the whole cabinet intact.
                 {
-                  src: '/icons/pwa-512.png',
+                  src: '/icons/arcade-maskable-192.png',
+                  sizes: '192x192',
+                  type: 'image/png',
+                  purpose: 'maskable',
+                },
+                {
+                  src: '/icons/arcade-maskable-512.png',
                   sizes: '512x512',
                   type: 'image/png',
                   purpose: 'maskable',
