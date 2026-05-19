@@ -2396,7 +2396,7 @@ const FAQ_SECTIONS: { title: string; body: React.ReactNode }[] = [
     body: (
       <>
         <p>
-          Genki Arcade can be installed as a standalone desktop / phone app —
+          Genki Arcade can be installed as a standalone desktop / tablet app —
           dock icon, no browser chrome, works offline after the first visit.
           Game audio + capture work exactly like in the browser tab.
         </p>
@@ -2413,15 +2413,22 @@ const FAQ_SECTIONS: { title: string; body: React.ReactNode }[] = [
             path.
           </li>
           <li>
-            <strong>iPhone / iPad Safari:</strong> tap <strong>Share</strong>{' '}
-            (square with up-arrow) → scroll down → <strong>Add to Home
-            Screen</strong>. Camera capture inside an installed iOS PWA
-            requires <strong>iOS 16.4 or later</strong>.
+            <strong>iPad Safari (USB-C iPads):</strong> tap{' '}
+            <strong>Share</strong> (square with up-arrow) → scroll down →{' '}
+            <strong>Add to Home Screen</strong>. Capture inside an installed
+            iPadOS PWA requires <strong>iPadOS 16.4 or later</strong>.
+          </li>
+          <li>
+            <strong>iPhone:</strong> not supported. iPhone's USB-C port doesn't
+            expose UVC capture devices like iPad's does (it's power +
+            DisplayPort only), so installing the app on iPhone wouldn't get
+            you a working capture pipeline. iPad with USB-C is the iOS device
+            that can actually capture.
           </li>
         </ul>
         <p>
           To uninstall: on macOS / Windows, right-click the app icon → Uninstall.
-          On iOS, long-press the icon → Remove App.
+          On iPad, long-press the icon → Remove App.
         </p>
       </>
     ),
@@ -2573,11 +2580,21 @@ function useInstallPrompt() {
 // a user-initiated menu action only. Detect them so we can offer a
 // "show me how" button + modal instead of just hiding the install CTA.
 //
-// Returns 'macos-safari', 'ios', or null. Excludes Chrome/Firefox/Edge
-// running on iOS (CriOS/FxiOS/EdgiOS — they're WebKit-backed but skinned
-// differently). iPadOS 13+ identifies itself as Mac, so we sniff touch
-// support to disambiguate.
-function detectSafariInstallContext(): 'macos-safari' | 'ios' | null {
+// Returns:
+//   'macos-safari' — macOS Safari 17+, install via File → Add to Dock…
+//   'ipad'         — iPadOS, install via Share → Add to Home Screen
+//   null           — anything else (including iPhone, see below)
+//
+// iPhone is intentionally excluded even though it can technically install
+// PWAs. Reason: iPhone's USB-C port doesn't expose UVC like iPad's does
+// (it's power + DisplayPort only). The app's whole purpose is capture, so
+// offering install on iPhone would land users with a non-functional shell.
+// iPad with USB-C does mount UVC capture cards and is a legitimate target.
+//
+// Excludes Chrome/Firefox/Edge running on iOS (CriOS/FxiOS/EdgiOS — they're
+// WebKit-backed but skinned differently). iPadOS 13+ identifies itself as
+// Mac, so we sniff touch support to disambiguate.
+function detectSafariInstallContext(): 'macos-safari' | 'ipad' | null {
   if (typeof navigator === 'undefined' || typeof window === 'undefined') return null;
   const ua = navigator.userAgent;
   const isAlreadyInstalled =
@@ -2586,16 +2603,17 @@ function detectSafariInstallContext(): 'macos-safari' | 'ios' | null {
     (navigator as unknown as { standalone?: boolean }).standalone === true;
   if (isAlreadyInstalled) return null;
 
-  const isIOSDevice =
-    /iPhone|iPad|iPod/i.test(ua) ||
+  // iPad detection: either explicit /iPad/ in UA (older iPadOS), or
+  // iPadOS 13+ trick where Safari claims MacIntel + multi-touch.
+  const isIPad =
+    /iPad/i.test(ua) ||
     (navigator.platform === 'MacIntel' &&
-      (navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints !== undefined &&
-      ((navigator as unknown as { maxTouchPoints: number }).maxTouchPoints || 0) > 1);
-  if (isIOSDevice) {
-    // Any iOS browser → install path is "Share → Add to Home Screen"
-    // (Chrome / Firefox / Edge on iOS are all WebKit under the hood).
-    return 'ios';
-  }
+      ((navigator as unknown as { maxTouchPoints?: number }).maxTouchPoints || 0) > 1);
+  if (isIPad) return 'ipad';
+
+  // iPhone / iPod: deliberately return null. The capture story doesn't work.
+  if (/iPhone|iPod/i.test(ua)) return null;
+
   const isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|Edg\//i.test(ua);
   const isMac = /Macintosh|Mac OS X/i.test(ua);
   if (isSafari && isMac) return 'macos-safari';
@@ -2604,7 +2622,7 @@ function detectSafariInstallContext(): 'macos-safari' | 'ios' | null {
 
 function InstallButton() {
   const { canInstall, install } = useInstallPrompt();
-  const [safariCtx] = useState<'macos-safari' | 'ios' | null>(() =>
+  const [safariCtx] = useState<'macos-safari' | 'ipad' | null>(() =>
     detectSafariInstallContext(),
   );
   const [safariModalOpen, setSafariModalOpen] = useState(false);
@@ -2651,14 +2669,14 @@ function SafariInstallModal({
   platform,
   onClose,
 }: {
-  platform: 'macos-safari' | 'ios';
+  platform: 'macos-safari' | 'ipad';
   onClose: () => void;
 }) {
   // Reuses the FaqModal class structure (.arc-faq-backdrop /
   // .arc-faq-modal / .arc-faq-head / .arc-faq-body /
   // .arc-faq-section[details]) so the existing styles cover us — no new
   // CSS needed. Content is purely instructional.
-  const isIOS = platform === 'ios';
+  const isIPad = platform === 'ipad';
   return (
     <div className="arc-faq-backdrop" onClick={onClose}>
       <div
@@ -2682,17 +2700,16 @@ function SafariInstallModal({
         <div className="arc-faq-body">
           <details className="arc-faq-section" open>
             <summary>
-              {isIOS
-                ? 'Add to Home Screen (iPhone / iPad)'
+              {isIPad
+                ? 'Add to Home Screen (iPad)'
                 : 'Add to Dock (macOS Safari)'}
             </summary>
             <div className="arc-faq-content">
-              {isIOS ? (
+              {isIPad ? (
                 <ol>
                   <li>
                     Tap the <strong>Share</strong> button — the square with the
-                    up arrow, at the bottom of the screen (or top right on
-                    iPad).
+                    up arrow, at the top right of the screen.
                   </li>
                   <li>
                     Scroll down and tap <strong>Add to Home Screen</strong>.
@@ -2728,16 +2745,20 @@ function SafariInstallModal({
               )}
             </div>
           </details>
-          {isIOS && (
+          {isIPad && (
             <details className="arc-faq-section" open>
               <summary>One note on capture</summary>
               <div className="arc-faq-content">
                 <p>
-                  Camera and microphone access inside an installed iOS PWA
-                  requires <strong>iOS 16.4 or later</strong>. Older versions
-                  install fine but can't capture video. Most iPhone / iPad
-                  capture-card use needs USB-C anyway (iPhone 15+ or modern
-                  iPads), so the OS version usually lines up.
+                  Capture works on <strong>USB-C iPads</strong> (M-series and
+                  recent A-series — they mount UVC capture cards natively).
+                  Older Lightning-port iPads can't connect a ShadowCast at
+                  all, so installing on those isn't useful.
+                </p>
+                <p>
+                  Camera and microphone access inside an installed iPadOS PWA
+                  requires <strong>iPadOS 16.4 or later</strong>. Older
+                  versions install fine but can't capture video.
                 </p>
               </div>
             </details>
