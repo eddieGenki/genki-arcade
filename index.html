@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0a0a0a" />
     <link rel="icon" type="image/png" href="/favicon.png" />
-    <link rel="apple-touch-icon" href="/favicon.png" />
+    <!-- PWA icons. /favicon.png is the 2925-square original; the /icons/*
+         PNGs are downscaled variants generated from it at build prep time.
+         Browsers / iOS Safari pick the closest size match automatically. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
 
     <!-- Onest (display) + Inter (body) — fallbacks for Nekst + Suisse Int'l, per design spec. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

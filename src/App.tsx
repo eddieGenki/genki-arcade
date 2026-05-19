@@ -1697,6 +1697,7 @@ export default function App() {
         )}
         {!running && (
           <div className="arc-corner-actions">
+            <InstallButton />
             <button
               className="arc-faq-trigger"
               onClick={() => setFaqOpen(true)}
@@ -2439,6 +2440,73 @@ function FaqModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// `beforeinstallprompt` event shape — TS lib doesn't have it yet because
+// it's still a Chromium-specific extension to the web spec.
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+// Hook: tracks whether the browser can install this app as a PWA.
+// Returns `install()` that fires the OS-level install dialog. Only fires
+// on Chromium-family browsers (Chrome, Edge, Brave) on desktop + Android.
+// Safari users get nothing here — we surface a static FAQ entry for the
+// iOS / Mac Safari "Add to Home Screen" path instead.
+function useInstallPrompt() {
+  const [event, setEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [installed, setInstalled] = useState<boolean>(() => {
+    // display-mode: standalone is true when the app was launched from an
+    // installed PWA icon (vs. a normal browser tab). Hides the button for
+    // users who've already installed it.
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia?.('(display-mode: standalone)').matches ?? false;
+  });
+
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault(); // stop Chrome from showing its own mini-infobar
+      setEvent(e as BeforeInstallPromptEvent);
+    };
+    const onInstalled = () => {
+      setInstalled(true);
+      setEvent(null);
+    };
+    window.addEventListener('beforeinstallprompt', onPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+
+  const install = useCallback(async () => {
+    if (!event) return;
+    await event.prompt();
+    const { outcome } = await event.userChoice;
+    // Single-use event — once prompted, Chrome won't refire it for this
+    // session. Clear our reference so the button hides until next page load.
+    setEvent(null);
+    if (outcome === 'accepted') setInstalled(true);
+  }, [event]);
+
+  return { canInstall: !!event && !installed, installed, install };
+}
+
+function InstallButton() {
+  const { canInstall, install } = useInstallPrompt();
+  if (!canInstall) return null;
+  return (
+    <button
+      className="arc-faq-trigger arc-install-trigger"
+      onClick={install}
+      type="button"
+      title="Install Genki Arcade as a standalone app"
+    >
+      Install app
+    </button>
   );
 }
 

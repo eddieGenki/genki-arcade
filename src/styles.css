@@ -655,6 +655,24 @@ input {
   text-decoration: underline;
 }
 
+/* Install button — only renders when beforeinstallprompt has fired (Chrome /
+   Edge / Brave on supported platforms). Coral tint sets it apart from the
+   muted FAQ link, but it stays a text button so it doesn't shout over the
+   idle hero. Subtle dot prefix as a visual marker. */
+.arc-install-trigger {
+  color: var(--coral);
+  font-weight: 600;
+}
+.arc-install-trigger::before {
+  content: '• ';
+  opacity: 0.7;
+}
+.arc-install-trigger:hover {
+  color: var(--coral);
+  filter: brightness(1.15);
+  text-decoration: underline;
+}
+
 .arc-build-stamp {
   font-size: 10px;
   font-family: 'Suisse Int\'l', 'Inter', system-ui, sans-serif;
