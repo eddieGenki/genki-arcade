@@ -19,6 +19,34 @@
     />
 
     <title>Genki Arcade</title>
+
+    <!-- Capture beforeinstallprompt before any module code runs.
+         Chrome fires this event exactly once per page load, asynchronously,
+         after the SW registers + installability checks pass. If it fires
+         while React is still booting (common on first visit, when caches
+         are cold), the React hook attaches its listener too late and the
+         event is lost for the session — that's why the install button
+         used to need a reload to appear.
+
+         This inline script attaches the listener synchronously at HTML
+         parse time, stashes the event on window.__pwaInstallEvent, and
+         dispatches a 'pwa-install-ready' event so any late-mounting hook
+         can react. The hook also reads window.__pwaInstallEvent on
+         mount as a belt-and-suspenders for the same-tick case. -->
+    <script>
+      (function () {
+        window.__pwaInstallEvent = null;
+        window.addEventListener('beforeinstallprompt', function (e) {
+          e.preventDefault();
+          window.__pwaInstallEvent = e;
+          window.dispatchEvent(new Event('pwa-install-ready'));
+        });
+        window.addEventListener('appinstalled', function () {
+          window.__pwaInstallEvent = null;
+          window.dispatchEvent(new Event('pwa-installed'));
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

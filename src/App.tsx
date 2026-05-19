@@ -2450,13 +2450,32 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+// The inline script in index.html stashes the event on window under this
+// key, dispatching 'pwa-install-ready' when it fires. We mirror the same
+// global here so the hook can read it on mount without a race against the
+// async event.
+declare global {
+  interface Window {
+    __pwaInstallEvent?: BeforeInstallPromptEvent | null;
+  }
+}
+
 // Hook: tracks whether the browser can install this app as a PWA.
 // Returns `install()` that fires the OS-level install dialog. Only fires
 // on Chromium-family browsers (Chrome, Edge, Brave) on desktop + Android.
 // Safari users get nothing here — we surface a static FAQ entry for the
 // iOS / Mac Safari "Add to Home Screen" path instead.
+//
+// Race-safety: Chrome fires beforeinstallprompt exactly once per page load,
+// asynchronously. On first visits with cold caches, the event sometimes
+// fires before React has mounted — the inline bootstrap in index.html
+// catches it on window.__pwaInstallEvent so this hook can pick it up
+// regardless of mount timing.
 function useInstallPrompt() {
-  const [event, setEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const [event, setEvent] = useState<BeforeInstallPromptEvent | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.__pwaInstallEvent ?? null;
+  });
   const [installed, setInstalled] = useState<boolean>(() => {
     // display-mode: standalone is true when the app was launched from an
     // installed PWA icon (vs. a normal browser tab). Hides the button for
@@ -2466,20 +2485,38 @@ function useInstallPrompt() {
   });
 
   useEffect(() => {
+    // Re-check the stash in case the event fired between the useState
+    // initializer and the effect attaching.
+    if (window.__pwaInstallEvent && !event) {
+      setEvent(window.__pwaInstallEvent);
+    }
+
     const onPrompt = (e: Event) => {
       e.preventDefault(); // stop Chrome from showing its own mini-infobar
       setEvent(e as BeforeInstallPromptEvent);
     };
+    // The bootstrap script in index.html dispatches this when it stashes
+    // a late-arriving event — covers the same-tick race where the event
+    // fires *between* our useState initializer and this listener attach.
+    const onReady = () => {
+      if (window.__pwaInstallEvent) setEvent(window.__pwaInstallEvent);
+    };
     const onInstalled = () => {
       setInstalled(true);
       setEvent(null);
+      window.__pwaInstallEvent = null;
     };
     window.addEventListener('beforeinstallprompt', onPrompt);
+    window.addEventListener('pwa-install-ready', onReady);
     window.addEventListener('appinstalled', onInstalled);
     return () => {
       window.removeEventListener('beforeinstallprompt', onPrompt);
+      window.removeEventListener('pwa-install-ready', onReady);
       window.removeEventListener('appinstalled', onInstalled);
     };
+    // Intentionally empty deps: we want a stable subscription. `event`
+    // re-reads happen via the listeners, not by re-running the effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const install = useCallback(async () => {
@@ -2487,8 +2524,10 @@ function useInstallPrompt() {
     await event.prompt();
     const { outcome } = await event.userChoice;
     // Single-use event — once prompted, Chrome won't refire it for this
-    // session. Clear our reference so the button hides until next page load.
+    // session. Clear our reference (and the window stash) so the button
+    // hides until next page load.
     setEvent(null);
+    window.__pwaInstallEvent = null;
     if (outcome === 'accepted') setInstalled(true);
   }, [event]);
 
