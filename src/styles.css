@@ -493,71 +493,29 @@ input {
   transform: translateY(1px) scale(0.99);
 }
 
-/* Desktop-app download callout (idle screen). Secondary styling so it doesn't
-   compete with the coral Start CTA. */
-.arc-download {
-  max-width: 720px;
-  margin: 0 auto 36px;
-  padding: 22px 24px;
-  border: 1px solid var(--arc-border);
-  background: var(--arc-panel);
-  text-align: center;
+/* Desktop-app download callout — reuses the .arc-upsell card (same size/layout
+   as the ShadowCast "Power up" upsell). Only the app-icon thumbnail and the
+   dual Mac/Windows action column differ. */
+.arc-upsell-img--app {
+  background: #0d0d12;
 }
-.arc-download-eyebrow {
-  margin-bottom: 8px;
+.arc-upsell-img--app img {
+  object-fit: contain;
+  padding: 7px;
 }
-.arc-download-title {
-  font-family: 'Nekst', 'Onest', sans-serif;
-  font-weight: 600;
-  font-size: 20px;
-  margin: 0 0 6px;
-  color: var(--arc-fg);
-}
-.arc-download-sub {
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--arc-muted);
-  max-width: 460px;
-  margin: 0 auto 18px;
-  text-wrap: pretty;
-}
-.arc-download-row {
+.arc-download-actions {
   display: flex;
-  gap: 12px;
-  justify-content: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
 }
-.arc-download-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  padding: 11px 20px;
-  font-family: 'Nekst', 'Onest', sans-serif;
-  font-weight: 600;
-  font-size: 14px;
+/* Windows: no build yet — a quiet label under the Mac CTA, not a dead link. */
+.arc-download-soon {
+  font-size: 10px;
   letter-spacing: 0.02em;
-  border: 1px solid var(--arc-border);
-  background: var(--arc-panel-2);
-  color: var(--arc-fg);
-  text-decoration: none;
-  cursor: pointer;
-  transition: transform 0.12s ease, filter 0.15s ease, border-color 0.15s ease;
-}
-.arc-download-btn:hover {
-  border-color: rgba(255, 255, 255, 0.25);
-  filter: brightness(1.12);
-}
-.arc-download-btn:active {
-  transform: translateY(1px) scale(0.99);
-}
-.arc-download-btn svg {
-  display: block;
-}
-/* Windows: no build yet — shown but not actionable. */
-.arc-download-btn--soon {
-  opacity: 0.4;
-  cursor: default;
-  pointer-events: none;
+  color: var(--arc-muted);
+  text-align: center;
+  opacity: 0.75;
 }
 
 @media (max-width: 720px) {

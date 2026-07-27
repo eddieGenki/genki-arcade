@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import logoUrl from './assets/genki-logo.png';
 import sc3CableUrl from './assets/sc3-cable.jpg';
+import arcadeIconUrl from './assets/arcade-icon-source.png';
 import { Icon } from './icons';
 import {
   LANGUAGE_ORDER,
@@ -3166,30 +3167,31 @@ function IdleHero({
           <QuickStep n="02" title={t.qs2Title} body={t.qs2Body} icon="play" />
           <QuickStep n="03" title={t.qs3Title} body={t.qs3Body} icon="shield" />
         </div>
-        <div className="arc-download">
-          <div className="arc-eyebrow arc-download-eyebrow">{t.dlEyebrow}</div>
-          <h2 className="arc-download-title">{t.dlTitle}</h2>
-          <p className="arc-download-sub">{t.dlBody}</p>
-          <div className="arc-download-row">
+        <div className="arc-upsell arc-upsell-desktop">
+          <div className="arc-upsell-img arc-upsell-img--app">
+            <img src={arcadeIconUrl} alt="Genki Arcade desktop app" />
+            <div className="arc-upsell-glow" />
+          </div>
+          <div className="arc-upsell-body">
+            <div className="arc-upsell-eyebrow">
+              <span className="arc-upsell-glyph">◆</span>
+              <span>{t.dlEyebrow}</span>
+            </div>
+            <div className="arc-upsell-title">{t.dlTitle}</div>
+            <div className="arc-upsell-sub">{t.dlBody}</div>
+          </div>
+          <div className="arc-upsell-actions arc-download-actions">
             <a
-              className="arc-download-btn"
+              className="arc-upsell-cta"
               href={MAC_DOWNLOAD_URL}
               onClick={() => analytics.desktopDownload('mac')}
             >
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+              <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="currentColor">
                 <path d="M16.37 12.6c-.03-2.55 2.08-3.77 2.17-3.83-1.18-1.73-3.02-1.97-3.68-2-1.57-.16-3.06.92-3.85.92-.79 0-2.02-.9-3.32-.88-1.71.03-3.29 1-4.17 2.53-1.78 3.09-.46 7.67 1.28 10.18.85 1.23 1.86 2.61 3.19 2.56 1.28-.05 1.76-.83 3.31-.83 1.54 0 1.98.83 3.33.8 1.38-.02 2.25-1.25 3.09-2.49.97-1.42 1.37-2.8 1.39-2.87-.03-.01-2.67-1.02-2.7-4.06zM13.9 4.98c.7-.85 1.18-2.03 1.05-3.21-1.01.04-2.24.68-2.97 1.53-.65.75-1.22 1.95-1.07 3.1 1.13.09 2.28-.57 2.99-1.42z" />
               </svg>
               <span>{t.dlMac}</span>
             </a>
-            <span
-              className="arc-download-btn arc-download-btn--soon"
-              aria-disabled="true"
-            >
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">
-                <path d="M3 5.4 10.5 4.3v7.1H3V5.4zM3 18.6l7.5 1.1v-7.1H3v6zM11.4 4.15 21 2.8v8.6h-9.6V4.15zM11.4 12.5H21v8.7l-9.6-1.35V12.5z" />
-              </svg>
-              <span>{t.dlWinSoon}</span>
-            </span>
+            <span className="arc-download-soon">{t.dlWinSoon}</span>
           </div>
         </div>
         {showUpsell && (
