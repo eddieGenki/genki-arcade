@@ -196,4 +196,8 @@ export const analytics = {
   upsellDismissed() {
     track('upsell_dismissed', baseProps());
   },
+
+  desktopDownload(platform: 'mac' | 'windows') {
+    track('desktop_download', { ...baseProps(), platform });
+  },
 };

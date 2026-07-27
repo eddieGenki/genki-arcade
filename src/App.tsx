@@ -39,6 +39,14 @@ const SHADOWCAST3_UPGRADE_URL =
 const SHADOWCAST3_SWITCHER_URL =
   'https://www.genkithings.com/discount/489SG87P5B3B?redirect=%2Fproducts%2Fshadowcast-3-pro&utm_source=arcade&utm_medium=upsell&utm_campaign=arcade-app';
 
+// Desktop app (beta) download. The Mac DMG is published on the public
+// releases repo; the "latest/download" URL always resolves to the newest
+// release's asset, so this link never needs bumping per release. Windows has
+// no build yet (the native capture layer is still a stub) — shown as
+// "coming soon" rather than a dead link.
+const MAC_DOWNLOAD_URL =
+  'https://github.com/eddieGenki/genki-arcade-releases/releases/latest/download/GenkiArcade.dmg';
+
 // Both promo codes expire on the same date. Surfaced in the UI on the
 // discounted variants so they read as time-limited, not evergreen.
 const UPSELL_EXPIRES_LABEL = 'Offer ends June 15';
@@ -3157,6 +3165,32 @@ function IdleHero({
           <QuickStep n="01" title={t.qs1Title} body={t.qs1Body} icon="plug" />
           <QuickStep n="02" title={t.qs2Title} body={t.qs2Body} icon="play" />
           <QuickStep n="03" title={t.qs3Title} body={t.qs3Body} icon="shield" />
+        </div>
+        <div className="arc-download">
+          <div className="arc-eyebrow arc-download-eyebrow">{t.dlEyebrow}</div>
+          <h2 className="arc-download-title">{t.dlTitle}</h2>
+          <p className="arc-download-sub">{t.dlBody}</p>
+          <div className="arc-download-row">
+            <a
+              className="arc-download-btn"
+              href={MAC_DOWNLOAD_URL}
+              onClick={() => analytics.desktopDownload('mac')}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor">
+                <path d="M16.37 12.6c-.03-2.55 2.08-3.77 2.17-3.83-1.18-1.73-3.02-1.97-3.68-2-1.57-.16-3.06.92-3.85.92-.79 0-2.02-.9-3.32-.88-1.71.03-3.29 1-4.17 2.53-1.78 3.09-.46 7.67 1.28 10.18.85 1.23 1.86 2.61 3.19 2.56 1.28-.05 1.76-.83 3.31-.83 1.54 0 1.98.83 3.33.8 1.38-.02 2.25-1.25 3.09-2.49.97-1.42 1.37-2.8 1.39-2.87-.03-.01-2.67-1.02-2.7-4.06zM13.9 4.98c.7-.85 1.18-2.03 1.05-3.21-1.01.04-2.24.68-2.97 1.53-.65.75-1.22 1.95-1.07 3.1 1.13.09 2.28-.57 2.99-1.42z" />
+              </svg>
+              <span>{t.dlMac}</span>
+            </a>
+            <span
+              className="arc-download-btn arc-download-btn--soon"
+              aria-disabled="true"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">
+                <path d="M3 5.4 10.5 4.3v7.1H3V5.4zM3 18.6l7.5 1.1v-7.1H3v6zM11.4 4.15 21 2.8v8.6h-9.6V4.15zM11.4 12.5H21v8.7l-9.6-1.35V12.5z" />
+              </svg>
+              <span>{t.dlWinSoon}</span>
+            </span>
+          </div>
         </div>
         {showUpsell && (
           <UpsellCard t={t} variant={upsellVariant} onDismiss={onDismissUpsell} />

@@ -493,6 +493,73 @@ input {
   transform: translateY(1px) scale(0.99);
 }
 
+/* Desktop-app download callout (idle screen). Secondary styling so it doesn't
+   compete with the coral Start CTA. */
+.arc-download {
+  max-width: 720px;
+  margin: 0 auto 36px;
+  padding: 22px 24px;
+  border: 1px solid var(--arc-border);
+  background: var(--arc-panel);
+  text-align: center;
+}
+.arc-download-eyebrow {
+  margin-bottom: 8px;
+}
+.arc-download-title {
+  font-family: 'Nekst', 'Onest', sans-serif;
+  font-weight: 600;
+  font-size: 20px;
+  margin: 0 0 6px;
+  color: var(--arc-fg);
+}
+.arc-download-sub {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--arc-muted);
+  max-width: 460px;
+  margin: 0 auto 18px;
+  text-wrap: pretty;
+}
+.arc-download-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.arc-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 20px;
+  font-family: 'Nekst', 'Onest', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--arc-border);
+  background: var(--arc-panel-2);
+  color: var(--arc-fg);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.15s ease, border-color 0.15s ease;
+}
+.arc-download-btn:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  filter: brightness(1.12);
+}
+.arc-download-btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+.arc-download-btn svg {
+  display: block;
+}
+/* Windows: no build yet — shown but not actionable. */
+.arc-download-btn--soon {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
 @media (max-width: 720px) {
   .arc-idle-title {
     font-size: 42px;

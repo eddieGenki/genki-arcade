@@ -63,9 +63,21 @@ export interface Translation {
 
   // Status
   shopLink: string;
+
+  // Desktop app download (idle screen)
+  dlEyebrow: string;
+  dlTitle: string;
+  dlBody: string;
+  dlMac: string;
+  dlWinSoon: string;
 }
 
 const en: Translation = {
+  dlEyebrow: "DESKTOP APP · BETA",
+  dlTitle: "Get the desktop app",
+  dlBody: "The full studio — recording, streaming, multi-cam layouts, and effects.",
+  dlMac: "Download for Mac",
+  dlWinSoon: "Windows — coming soon",
   label: 'English',
   flag: 'EN',
   arcade: 'Arcade',
@@ -115,6 +127,11 @@ const en: Translation = {
 };
 
 const ja: Translation = {
+  dlEyebrow: "デスクトップアプリ · ベータ",
+  dlTitle: "デスクトップアプリを入手",
+  dlBody: "録画・配信・マルチカメラレイアウト・エフェクトをすべて備えたフルスタジオ。",
+  dlMac: "Mac版をダウンロード",
+  dlWinSoon: "Windows版は近日公開",
   label: '日本語',
   flag: 'JA',
   arcade: 'アーケード',
@@ -164,6 +181,11 @@ const ja: Translation = {
 };
 
 const zhCN: Translation = {
+  dlEyebrow: "桌面应用 · 测试版",
+  dlTitle: "获取桌面应用",
+  dlBody: "完整工作室 — 录制、直播、多机位布局和特效。",
+  dlMac: "下载 Mac 版",
+  dlWinSoon: "Windows 版即将推出",
   label: '简体中文',
   flag: 'CN',
   arcade: '街机',
@@ -211,6 +233,11 @@ const zhCN: Translation = {
 };
 
 const zhTW: Translation = {
+  dlEyebrow: "桌面應用程式 · 測試版",
+  dlTitle: "取得桌面應用程式",
+  dlBody: "完整工作室 — 錄製、串流、多機位版面配置與特效。",
+  dlMac: "下載 Mac 版",
+  dlWinSoon: "Windows 版即將推出",
   label: '繁體中文',
   flag: 'TW',
   arcade: '街機',
@@ -258,6 +285,11 @@ const zhTW: Translation = {
 };
 
 const es: Translation = {
+  dlEyebrow: "APP DE ESCRITORIO · BETA",
+  dlTitle: "Consigue la app de escritorio",
+  dlBody: "El estudio completo: grabación, streaming, diseños multicámara y efectos.",
+  dlMac: "Descargar para Mac",
+  dlWinSoon: "Windows — próximamente",
   label: 'Español',
   flag: 'ES',
   arcade: 'Arcade',
@@ -307,6 +339,11 @@ const es: Translation = {
 };
 
 const fr: Translation = {
+  dlEyebrow: "APPLI DE BUREAU · BÊTA",
+  dlTitle: "Obtenez l'appli de bureau",
+  dlBody: "Le studio complet : enregistrement, diffusion, dispositions multicaméra et effets.",
+  dlMac: "Télécharger pour Mac",
+  dlWinSoon: "Windows — bientôt disponible",
   label: 'Français',
   flag: 'FR',
   arcade: 'Arcade',
@@ -356,6 +393,11 @@ const fr: Translation = {
 };
 
 const de: Translation = {
+  dlEyebrow: "DESKTOP-APP · BETA",
+  dlTitle: "Hol dir die Desktop-App",
+  dlBody: "Das komplette Studio – Aufnahme, Streaming, Multi-Cam-Layouts und Effekte.",
+  dlMac: "Für Mac herunterladen",
+  dlWinSoon: "Windows – bald verfügbar",
   label: 'Deutsch',
   flag: 'DE',
   arcade: 'Arcade',
@@ -405,6 +447,11 @@ const de: Translation = {
 };
 
 const ko: Translation = {
+  dlEyebrow: "데스크톱 앱 · 베타",
+  dlTitle: "데스크톱 앱 받기",
+  dlBody: "완전한 스튜디오 — 녹화, 스트리밍, 멀티캠 레이아웃, 효과.",
+  dlMac: "Mac용 다운로드",
+  dlWinSoon: "Windows — 곧 출시",
   label: '한국어',
   flag: 'KR',
   arcade: '아케이드',
