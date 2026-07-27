@@ -464,17 +464,28 @@ export const translations: Record<LanguageCode, Translation> = {
   ko,
 };
 
-// Language order for pickers — English first (default), then major
-// gaming markets by rough audience size for Genki.
+// Language order for pickers — English pinned first (source language +
+// default fallback), then alphabetical by native endonym.
+//
+// Latin-script languages cluster naturally by their Latin sort (Deutsch →
+// Español → Français), then CJK entries follow, ordered by Unicode
+// codepoint of the leading character — which happens to put Hangul (한)
+// before Hiragana/Kanji (日) before Chinese (简 / 繁). Not perfect
+// "alphabetical" across scripts, but stable and predictable, and each
+// speaker sees their own language written in their own script.
+//
+// Adding a new language later: slot it into its natural position in the
+// endonym sort. New Latin-script languages go among the Latin block;
+// new CJK languages go with the CJK block by codepoint.
 export const LANGUAGE_ORDER: LanguageCode[] = [
-  'en',
-  'ja',
-  'zh-CN',
-  'zh-TW',
-  'ko',
-  'es',
-  'fr',
-  'de',
+  'en',      // English
+  'de',      // Deutsch
+  'es',      // Español
+  'fr',      // Français
+  'ko',      // 한국어
+  'ja',      // 日本語
+  'zh-CN',   // 简体中文
+  'zh-TW',   // 繁體中文
 ];
 
 const LS_KEY = 'genki-arcade:lang';
