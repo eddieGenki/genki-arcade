@@ -36,7 +36,15 @@ body,
   height: 100%;
   background: var(--arc-bg);
   color: var(--arc-fg);
-  font-family: 'Suisse Int\'l', 'Inter', system-ui, -apple-system, sans-serif;
+  /* CJK families sit at the end of the stack — Latin browsers use
+     Suisse Int'l / Inter for Latin glyphs, then fall through to the
+     Noto Sans CJK families for any character the earlier fonts don't
+     cover (Japanese kana + kanji, Korean hangul, Simplified /
+     Traditional Chinese). Browsers pick the right CJK font per glyph
+     range automatically. */
+  font-family: 'Suisse Int\'l', 'Inter', system-ui, -apple-system,
+    'Noto Sans JP', 'Noto Sans KR', 'Noto Sans SC', 'Noto Sans TC',
+    sans-serif;
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

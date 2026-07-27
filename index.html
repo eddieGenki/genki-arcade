@@ -7,11 +7,19 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
 
-    <!-- Onest (display) + Inter (body) — fallbacks for Nekst + Suisse Int'l, per design spec. -->
+    <!-- Latin: Onest (display) + Inter (body) — fallbacks for Nekst +
+         Suisse Int'l per design spec.
+         CJK: Noto Sans JP / KR / SC / TC as fallback fonts. Loaded with
+         a limited weight range (400 + 700) to keep the payload
+         reasonable — heavier weights would triple the font download.
+         Fonts are loaded via a single request so the browser can HTTP/2
+         multiplex them.
+         `display=swap` shows the fallback system font until each web
+         font arrives, avoiding a blank flash. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+KR:wght@400;700&family=Noto+Sans+SC:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap"
       rel="stylesheet"
     />
 

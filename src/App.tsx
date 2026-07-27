@@ -2,8 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import logoUrl from './assets/genki-logo.png';
 import sc3CableUrl from './assets/sc3-cable.jpg';
 import { Icon } from './icons';
-import { pickLanguage, useTranslation } from './i18n';
-import { NEWS_ITEMS, shuffled } from './news';
+import {
+  LANGUAGE_ORDER,
+  type LanguageCode,
+  pickLanguage,
+  setLanguage,
+  translations,
+  useTranslation,
+} from './i18n';
+import { NEWS_ITEMS, localizeNewsItem, shuffled } from './news';
 import { UpscaleCanvas } from './upscaler';
 import { CRTCanvas } from './crt';
 import { analytics } from './analytics';
@@ -192,7 +199,16 @@ const MAX_FPS_BY_RESOLUTION: Record<string, number> = {
 };
 
 export default function App() {
-  const t = useTranslation(pickLanguage());
+  // Active language. Initialized from pickLanguage() (localStorage → browser
+  // locale → 'en'), then owned by React state so the picker can update it
+  // and the whole tree re-renders. setLang() also writes to localStorage
+  // so the choice survives reloads.
+  const [lang, setLang] = useState<LanguageCode>(() => pickLanguage());
+  const t = useTranslation(lang);
+  const changeLang = useCallback((next: LanguageCode) => {
+    setLang(next);
+    setLanguage(next);
+  }, []);
 
   // ---- DOM refs ------------------------------------------------------------
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1819,6 +1835,29 @@ export default function App() {
                   <span className="arc-eyebrow">{t.settings}</span>
                 </div>
 
+                {/* Language — placed first because it's find-once-then-forget:
+                    users who need to change it need it quickly, and it's out
+                    of the way of the capture-tuning workflow below. Native
+                    labels ('日本語', '한국어', etc.) so speakers of each
+                    language can find their entry visually. */}
+                <div className="arc-settings-section">
+                  <div className="arc-settings-section-title">Language</div>
+                  <div className="arc-settings-grid">
+                    <SettingRow label="Language">
+                      <select
+                        value={lang}
+                        onChange={(e) => changeLang(e.target.value as LanguageCode)}
+                      >
+                        {LANGUAGE_ORDER.map((code) => (
+                          <option key={code} value={code}>
+                            {translations[code].label}
+                          </option>
+                        ))}
+                      </select>
+                    </SettingRow>
+                  </div>
+                </div>
+
                 {/* Main input — primary capture device */}
                 <div className="arc-settings-section">
                   <div className="arc-settings-section-title">Main Input</div>
@@ -2214,7 +2253,7 @@ export default function App() {
           <div className="arc-ticker-slot">
             {!tickerDismissed && (
               <>
-                <NewsTicker />
+                <NewsTicker lang={lang} />
                 <button
                   className="arc-ticker-close"
                   onClick={dismissTicker}
@@ -2466,7 +2505,7 @@ function BuildStamp() {
   return <div className="arc-build-stamp">Build · {label}</div>;
 }
 
-function NewsTicker() {
+function NewsTicker({ lang }: { lang: LanguageCode }) {
   // Random order per visit so visitors don't always see the same first item.
   const items = useState(() => shuffled(NEWS_ITEMS))[0];
   const [index, setIndex] = useState(0);
@@ -2478,7 +2517,13 @@ function NewsTicker() {
   const DWELL_MS = 8_000; // how long the fully-typed message stays before fading
   const FADE_MS = 400; // fade-out duration before advancing
 
-  const item = items[index];
+  // Localized copy for the currently-visible item. Falls back to English
+  // when the active language has no translation for this specific news
+  // entry (see localizeNewsItem in news.ts). Re-computed whenever `lang`
+  // changes, so switching the picker mid-typewriter re-runs the effect
+  // below and re-types the newly localized text.
+  const rawItem = items[index];
+  const item = localizeNewsItem(rawItem, lang);
 
   // 1) Typewriter — types out the current message character by character
   useEffect(() => {
@@ -2494,7 +2539,7 @@ function NewsTicker() {
       }
     }, TYPE_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [item.id, item.text]);
+  }, [rawItem.id, item.text]);
 
   // 2) Dwell — once typing finishes, hold for DWELL_MS, then fade
   useEffect(() => {
