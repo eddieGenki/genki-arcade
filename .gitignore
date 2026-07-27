@@ -4,3 +4,10 @@ dist
 *.local
 .vite
 *.tsbuildinfo
+
+# Claude Code / Anthropic tooling — session state, worktrees, scratch notes.
+# Never worth tracking, and worktrees are embedded git repos that break
+# checkouts if committed.
+.claude/
+newsticker-*.md
+
