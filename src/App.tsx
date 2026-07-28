@@ -3184,6 +3184,8 @@ function IdleHero({
             <a
               className="arc-upsell-cta"
               href={MAC_DOWNLOAD_URL}
+              target="_blank"
+              rel="noopener noreferrer"
               onClick={() => analytics.desktopDownload('mac')}
             >
               <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" fill="currentColor">
