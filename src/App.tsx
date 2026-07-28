@@ -1722,7 +1722,6 @@ export default function App() {
         )}
         {!running && (
           <div className="arc-corner-actions">
-            <InstallButton />
             <button
               className="arc-faq-trigger"
               onClick={() => setFaqOpen(true)}
@@ -3194,6 +3193,7 @@ function IdleHero({
               <span>{t.dlMac}</span>
             </a>
             <span className="arc-download-soon">{t.dlWinSoon}</span>
+            <InstallButton />
           </div>
         </div>
         {showUpsell && (
