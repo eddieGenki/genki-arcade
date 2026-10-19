@@ -2504,6 +2504,39 @@ const FAQ_SECTIONS: { title: string; body: React.ReactNode }[] = [
     ),
   },
   {
+    title: 'OBS / Streamlabs: audio from other tabs is leaking into my stream',
+    body: (
+      <>
+        <p>
+          When a Window Capture source has <strong>Capture Audio</strong> turned
+          on, OBS and Streamlabs record the whole browser's audio. Chrome and
+          Edge play every tab through a single audio process, so any other tab
+          making sound (a stream you're lurking, YouTube, Discord in the
+          browser) gets captured along with the game.
+        </p>
+        <ul>
+          <li>
+            <strong>Best fix:</strong> turn off <em>Capture Audio</em> on the
+            Genki Arcade window source, then add an{' '}
+            <strong>Audio Input Capture</strong> source and pick your
+            ShadowCast's audio device. Game audio comes straight from the card,
+            and nothing else in your browser can leak in.
+          </li>
+          <li>
+            <strong>Quick fix:</strong> run Genki Arcade in a different browser
+            from the one you're lurking in (e.g. Genki Arcade in Edge, the
+            stream in Chrome). Each browser is captured separately.
+          </li>
+        </ul>
+        <p>
+          If you also capture Desktop Audio, mute Genki Arcade's audio (press{' '}
+          <strong>A</strong>) and monitor the ShadowCast source in OBS /
+          Streamlabs instead, so the game isn't captured twice.
+        </p>
+      </>
+    ),
+  },
+  {
     title: 'Privacy',
     body: (
       <p>
